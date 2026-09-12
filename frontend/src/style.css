@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colors from DESIGN.md */
+  --bg-canvas: #0B0E10;
+  --surface-neutral: #111416;
+  --surface-container: #182024;
+  --surface-card: #151B1E;
+  --surface-elevated: #1A2328;
+  
+  --border-subtle: #222D32;
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-petrol: #1F3D44;
+  
+  --text-headline: #F8FAFC;
+  --text-body: #E2E8F0;
+  --text-muted: #7E8B91;
+  --text-dim: #5A6569;
+  
+  --accent-primary: #2DD4BF;
+  --accent-primary-hover: #57F1DB;
+  --accent-petrol: #1F3D44;
+  --accent-petrol-hover: #264B54;
+  --accent-tertiary: #06B6D4;
+  
+  --status-success: #10B981;
+  --status-thought: #38BDF8;
+  --status-warning: #F59E0B;
+  --status-error: #EF4444;
+
+  /* Typography */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Radii */
+  --radius-sm: 2px;
+  --radius-default: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Flat Design - No Neon Glows */
+  --glow-primary: none;
+  --glow-agent: none;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-canvas);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-neutral);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27343b;
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #394b54;
+}
+
+/* Code & Telemetry Helpers */
+code, pre, .mono {
+  font-family: var(--font-mono);
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+@layer utilities {
+  .wails-drag {
+    --wails-draggable: drag;
+  }
+  .wails-no-drag {
+    --wails-draggable: no-drag;
+  }
+}
