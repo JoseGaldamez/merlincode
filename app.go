@@ -2,154 +2,133 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"merlincode/internal/domain"
+	"merlincode/internal/window"
+	"merlincode/internal/workspace"
 )
 
-// PanelsState represents the open/closed state of the sidebars
-type PanelsState struct {
-	LeftOpen  bool `json:"leftOpen"`
-	RightOpen bool `json:"rightOpen"`
-}
+// Type aliases para mantener compatibilidad total con los bindings y modelos TypeScript de Wails
+type ProjectInfo = domain.ProjectInfo
+type FileItem = domain.FileItem
+type FileNode = domain.FileNode
+type PanelsState = domain.PanelsState
+type WindowState = domain.WindowState
 
-// WindowState stores dimensions and state of the desktop window and panels
-type WindowState struct {
-	Width          int  `json:"width"`
-	Height         int  `json:"height"`
-	Maximised      bool `json:"maximised"`
-	LeftPanelOpen  bool `json:"left_panel_open"`
-	RightPanelOpen bool `json:"right_panel_open"`
-}
-
-// App struct
+// App actúa como la fachada (Facade) que Wails expone al frontend de React
 type App struct {
-	ctx         context.Context
-	windowState WindowState
+	ctx              context.Context
+	windowService    *window.Service
+	workspaceService *workspace.Service
 }
 
-func getWindowStateFilePath() string {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
-	}
-	appDir := filepath.Join(configDir, "merlincode")
-	_ = os.MkdirAll(appDir, 0755)
-	return filepath.Join(appDir, "window.json")
-}
-
-// LoadWindowState loads saved window size or defaults to Full HD (1920x1080) with right panel closed
-func LoadWindowState() WindowState {
-	state := WindowState{
-		Width:          1920,
-		Height:         1080,
-		Maximised:      false,
-		LeftPanelOpen:  true,  // Left open by default
-		RightPanelOpen: false, // Right closed by default
-	}
-
-	filePath := getWindowStateFilePath()
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return state
-	}
-
-	var raw map[string]interface{}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return state
-	}
-
-	if w, ok := raw["width"].(float64); ok && int(w) >= 600 {
-		state.Width = int(w)
-	}
-	if h, ok := raw["height"].(float64); ok && int(h) >= 400 {
-		state.Height = int(h)
-	}
-	if max, ok := raw["maximised"].(bool); ok {
-		state.Maximised = max
-	}
-	if l, ok := raw["left_panel_open"].(bool); ok {
-		state.LeftPanelOpen = l
-	}
-	if r, ok := raw["right_panel_open"].(bool); ok {
-		state.RightPanelOpen = r
-	}
-
-	return state
-}
-
-// SaveWindowState writes window state to config
-func (a *App) SaveWindowState(state WindowState) {
-	if state.Width < 600 || state.Height < 400 {
-		return
-	}
-	filePath := getWindowStateFilePath()
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err == nil {
-		_ = os.WriteFile(filePath, data, 0644)
-	}
-}
-
-// NewApp creates a new App application struct
+// NewApp inicializa la estructura de la aplicación y sus servicios de dominio
 func NewApp() *App {
 	return &App{
-		windowState: LoadWindowState(),
+		windowService:    window.NewService(),
+		workspaceService: workspace.NewService(),
 	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+// startup se ejecuta al iniciar la aplicación Wails y guarda el contexto de runtime
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	if a.windowState.Maximised {
+	if a.windowService.GetState().Maximised {
 		runtime.WindowMaximise(ctx)
 	}
 }
 
-// beforeClose is called before the application closes to persist the current window size
+// beforeClose se invoca antes de cerrar para guardar el tamaño final de la ventana
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	if a.ctx != nil {
 		isMax := runtime.WindowIsMaximised(a.ctx)
 		w, h := runtime.WindowGetSize(a.ctx)
-		if !isMax && w >= 600 && h >= 400 {
-			a.windowState.Width = w
-			a.windowState.Height = h
-		}
-		a.windowState.Maximised = isMax
-		a.SaveWindowState(a.windowState)
+		a.windowService.SaveSize(w, h, isMax)
 	}
 	return false
 }
 
-// SaveWindowSize is callable from the frontend on resize to ensure persistence
-func (a *App) SaveWindowSize(width int, height int, isMaximised bool) {
-	if !isMaximised && width >= 600 && height >= 400 {
-		a.windowState.Width = width
-		a.windowState.Height = height
-	}
-	a.windowState.Maximised = isMaximised
-	a.SaveWindowState(a.windowState)
-}
-
-// SavePanelsState persists the left and right panels open/close state
-func (a *App) SavePanelsState(leftOpen bool, rightOpen bool) {
-	a.windowState.LeftPanelOpen = leftOpen
-	a.windowState.RightPanelOpen = rightOpen
-	a.SaveWindowState(a.windowState)
-}
-
-// GetPanelsState returns the saved panel states
-func (a *App) GetPanelsState() PanelsState {
-	return PanelsState{
-		LeftOpen:  a.windowState.LeftPanelOpen,
-		RightOpen: a.windowState.RightPanelOpen,
-	}
-}
-
-// Greet returns a greeting for the given name
+// Greet retorna un mensaje de saludo para pruebas
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
 }
+
+// SaveWindowSize persiste las dimensiones de la ventana desde el frontend
+func (a *App) SaveWindowSize(width int, height int, isMaximised bool) {
+	a.windowService.SaveSize(width, height, isMaximised)
+}
+
+// SavePanelsState persiste el estado de apertura de los paneles laterales
+func (a *App) SavePanelsState(leftOpen bool, rightOpen bool) {
+	a.windowService.SavePanelsState(leftOpen, rightOpen)
+}
+
+// GetPanelsState retorna el estado actual de los paneles
+func (a *App) GetPanelsState() PanelsState {
+	return a.windowService.GetPanelsState()
+}
+
+// SelectProjectFolder abre el diálogo nativo para seleccionar una carpeta y la establece como activa
+func (a *App) SelectProjectFolder() (*ProjectInfo, error) {
+	if a.ctx == nil {
+		return nil, domain.ErrRuntimeNotInitialized
+	}
+
+	selectedDir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Seleccionar carpeta del proyecto",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if selectedDir == "" {
+		return nil, nil // Cancelado por el usuario
+	}
+
+	return a.workspaceService.SetActive(selectedDir)
+}
+
+// SetActiveProject valida permisos y define la carpeta activa del proyecto
+func (a *App) SetActiveProject(dirPath string) (*ProjectInfo, error) {
+	return a.workspaceService.SetActive(dirPath)
+}
+
+// GetActiveProject retorna la información del proyecto activo o nil
+func (a *App) GetActiveProject() *ProjectInfo {
+	return a.workspaceService.GetActive()
+}
+
+// WriteProjectFile escribe contenido en un archivo dentro del proyecto activo asegurando sandboxing
+func (a *App) WriteProjectFile(relativePath string, content string) error {
+	return a.workspaceService.WriteFile(relativePath, content)
+}
+
+// ReadProjectFile lee el contenido de un archivo dentro del proyecto activo
+func (a *App) ReadProjectFile(relativePath string) (string, error) {
+	return a.workspaceService.ReadFile(relativePath)
+}
+
+// ListProjectFiles retorna los archivos y carpetas directamente en la raíz del proyecto activo
+func (a *App) ListProjectFiles() ([]FileItem, error) {
+	return a.workspaceService.ListFiles()
+}
+
+// GetProjectTree retorna el árbol jerárquico de archivos del proyecto activo
+func (a *App) GetProjectTree() ([]FileNode, error) {
+	return a.workspaceService.GetTree()
+}
+
+// OpenDirectoryInExplorer abre la carpeta indicada o el proyecto activo en el explorador del sistema
+func (a *App) OpenDirectoryInExplorer(targetPath string) error {
+	return a.workspaceService.OpenExplorer(targetPath)
+}
+
+// OpenURLInDefaultBrowser abre una URL en el navegador predeterminado del sistema operativo
+func (a *App) OpenURLInDefaultBrowser(url string) {
+	if a.ctx != nil {
+		runtime.BrowserOpenURL(a.ctx, url)
+	}
+}
+

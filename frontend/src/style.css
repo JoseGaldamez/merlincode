@@ -114,7 +114,11 @@ input, textarea {
   .wails-drag {
     --wails-draggable: drag;
   }
-  .wails-no-drag {
-    --wails-draggable: no-drag;
+  .wails-no-drag,
+  button,
+  input,
+  select,
+  textarea {
+    --wails-draggable: none;
   }
 }

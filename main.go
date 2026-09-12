@@ -13,14 +13,15 @@ import (
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
+	// Crear instancia de la fachada de la aplicación
 	app := NewApp()
+	initialWindowState := app.windowService.GetState()
 
-	// Create application with options
+	// Iniciar la aplicación de escritorio Wails
 	err := wails.Run(&options.App{
 		Title:     "Merlin Code",
-		Width:     app.windowState.Width,
-		Height:    app.windowState.Height,
+		Width:     initialWindowState.Width,
+		Height:    initialWindowState.Height,
 		MinWidth:  800,
 		MinHeight: 600,
 		Frameless: true,

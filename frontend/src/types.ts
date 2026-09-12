@@ -1,3 +1,8 @@
+export interface MessageAction {
+  type: 'open_folder';
+  label: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -10,6 +15,7 @@ export interface Message {
     filename?: string;
   };
   status?: 'idle' | 'thinking' | 'done' | 'error';
+  action?: MessageAction;
 }
 
 export interface Session {
@@ -42,6 +48,6 @@ export interface AgentTelemetry {
 export interface Project {
   id: string;
   name: string;
-  path?: string;
+  path: string;
 }
 

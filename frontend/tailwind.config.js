@@ -60,6 +60,9 @@ export default {
         sans: ['Geist', 'Inter', 'Segoe UI', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
       },
+      fontSize: {
+        md: ['1rem', { lineHeight: '1.5rem' }],
+      },
       borderRadius: {
         xs: '2px',
         sm: '4px',

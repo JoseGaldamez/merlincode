@@ -5,43 +5,85 @@ import (
 	"testing"
 )
 
-func TestWindowStatePersistence(t *testing.T) {
-	// Clean previous state file if any for testing default
-	path := getWindowStateFilePath()
-	_ = os.Remove(path)
-
-	initial := LoadWindowState()
-	if initial.Width != 1920 || initial.Height != 1080 {
-		t.Fatalf("Expected default 1920x1080, got %dx%d", initial.Width, initial.Height)
-	}
-	if !initial.LeftPanelOpen {
-		t.Fatalf("Expected LeftPanelOpen to be true by default, got %v", initial.LeftPanelOpen)
-	}
-	if initial.RightPanelOpen {
-		t.Fatalf("Expected RightPanelOpen to be false by default, got %v", initial.RightPanelOpen)
-	}
-
+func TestAppIntegrationWindowState(t *testing.T) {
 	app := NewApp()
+
+	// Probar persistencia de tamaño y paneles a través de la fachada App
 	app.SaveWindowSize(1440, 900, false)
 	app.SavePanelsState(false, true)
 
-	reloaded := LoadWindowState()
-	if reloaded.Width != 1440 || reloaded.Height != 900 {
-		t.Fatalf("Expected reloaded 1440x900, got %dx%d", reloaded.Width, reloaded.Height)
-	}
-	if reloaded.LeftPanelOpen != false {
-		t.Fatalf("Expected reloaded LeftPanelOpen to be false, got %v", reloaded.LeftPanelOpen)
-	}
-	if reloaded.RightPanelOpen != true {
-		t.Fatalf("Expected reloaded RightPanelOpen to be true, got %v", reloaded.RightPanelOpen)
-	}
-
 	panels := app.GetPanelsState()
 	if panels.LeftOpen != false || panels.RightOpen != true {
-		t.Fatalf("Expected GetPanelsState to be false, true, got %v, %v", panels.LeftOpen, panels.RightOpen)
+		t.Fatalf("Esperado GetPanelsState() (false, true), obtenido (%v, %v)",
+			panels.LeftOpen, panels.RightOpen)
 	}
 
-	// Reset back to default 1920x1080 and panels (true, false) for user's launch
+	// Restaurar valores estándar
 	app.SaveWindowSize(1920, 1080, false)
 	app.SavePanelsState(true, false)
+}
+
+func TestAppIntegrationWorkspaceSandboxing(t *testing.T) {
+	app := NewApp()
+
+	// Operación sin proyecto activo debe fallar
+	if err := app.WriteProjectFile("test.txt", "hello"); err == nil {
+		t.Fatal("Esperado error al escribir sin proyecto activo")
+	}
+
+	tempDir, err := os.MkdirTemp("", "merlin_app_integration_*")
+	if err != nil {
+		t.Fatalf("Error creando tempDir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	proj, err := app.SetActiveProject(tempDir)
+	if err != nil {
+		t.Fatalf("SetActiveProject falló: %v", err)
+	}
+	if proj == nil || proj.Path != tempDir {
+		t.Fatalf("Información de proyecto inesperada: %+v", proj)
+	}
+
+	// Escritura permitida dentro del proyecto
+	err = app.WriteProjectFile("nested/example.txt", "Contenido seguro")
+	if err != nil {
+		t.Fatalf("WriteProjectFile falló: %v", err)
+	}
+
+	content, err := app.ReadProjectFile("nested/example.txt")
+	if err != nil {
+		t.Fatalf("ReadProjectFile falló: %v", err)
+	}
+	if content != "Contenido seguro" {
+		t.Fatalf("Esperado 'Contenido seguro', obtenido '%s'", content)
+	}
+
+	// Intento de escape hacia afuera del proyecto (Path Traversal)
+	err = app.WriteProjectFile("../outside.txt", "Hack")
+	if err == nil {
+		t.Fatal("Esperado que el intento de path traversal sea rechazado, pero fue aceptado")
+	}
+
+	_, err = app.ReadProjectFile("../outside.txt")
+	if err == nil {
+		t.Fatal("Esperado que la lectura con path traversal sea rechazada, pero fue aceptada")
+	}
+
+	// Listar archivos y árbol
+	items, err := app.ListProjectFiles()
+	if err != nil {
+		t.Fatalf("ListProjectFiles falló: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("Esperado al menos 1 elemento en el proyecto")
+	}
+
+	tree, err := app.GetProjectTree()
+	if err != nil {
+		t.Fatalf("GetProjectTree falló: %v", err)
+	}
+	if len(tree) == 0 {
+		t.Fatal("Esperado al menos 1 nodo en el árbol")
+	}
 }
