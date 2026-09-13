@@ -5,3 +5,6 @@ frontend/dist
 # Generado automáticamente por Wails (wails dev / wails build); no editar a mano
 frontend/wailsjs/
 frontend/package.json.md5
+
+# Ignorado a pedido: difiere por versión de npm instalada localmente
+frontend/package-lock.json
