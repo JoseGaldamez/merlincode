@@ -14,8 +14,6 @@ export interface SettingsState {
   modelProvider: string;
   model: string;
   temperature: number;
-  apiKey: string;
-  apiEndpoint: string;
   streaming: boolean;
   theme: string;
   language: string;

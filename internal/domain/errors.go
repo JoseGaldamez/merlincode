@@ -23,4 +23,10 @@ var (
 
 	// ErrNoTargetPath indica que no se especificó ruta ni existe proyecto activo para la acción
 	ErrNoTargetPath = errors.New("no hay ningún proyecto activo ni ruta especificada")
+
+	// ErrUnknownAIProvider indica que el proveedor de IA solicitado no está registrado
+	ErrUnknownAIProvider = errors.New("proveedor de inteligencia artificial no reconocido")
+
+	// ErrAdminKeyNotSupported indica que el proveedor no requiere ni admite una Admin API Key
+	ErrAdminKeyNotSupported = errors.New("este proveedor no admite una clave de administrador para consultar uso real")
 )

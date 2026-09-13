@@ -1,3 +1,7 @@
 build/bin
 node_modules
 frontend/dist
+
+# Generado automáticamente por Wails (wails dev / wails build); no editar a mano
+frontend/wailsjs/
+frontend/package.json.md5

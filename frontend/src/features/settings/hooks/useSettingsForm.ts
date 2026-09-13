@@ -15,8 +15,6 @@ const defaultSettings: SettingsState = {
   modelProvider: initialProvider.id,
   model: initialProvider.defaultModel,
   temperature: 0.7,
-  apiKey: '',
-  apiEndpoint: initialProvider.officialEndpoint,
   streaming: true,
   theme: 'dark-flat',
   language: 'es',
@@ -46,7 +44,6 @@ export function useSettingsForm(
           ...parsed,
           modelProvider: validProvider,
           model: telemetry.activeModel || activeModel,
-          apiEndpoint: providerConfig.officialEndpoint,
           temperature: telemetry.temperature ?? parsed.temperature ?? defaultSettings.temperature,
         };
       }
@@ -81,7 +78,6 @@ export function useSettingsForm(
           ...prev,
           modelProvider: nextProvider.id,
           model: isCurrentModelValid ? prev.model : nextProvider.defaultModel,
-          apiEndpoint: nextProvider.officialEndpoint,
         };
       }
       return { ...prev, [key]: value };
