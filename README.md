@@ -21,6 +21,7 @@
     <a href="#-características-principales">Características</a> •
     <a href="#-guía-de-instalación-desde-cero">Instalación desde Cero</a> •
     <a href="#-ejecución-y-desarrollo">Ejecución</a> •
+    <a href="#-claves-de-api-de-proveedores-de-ia">Claves de API</a> •
     <a href="#-compilación-para-producción">Compilación</a> •
     <a href="#%EF%B8%8F-arquitectura-del-proyecto">Arquitectura</a> •
     <a href="#-creador">Creador</a> •
@@ -172,6 +173,23 @@ Ambos archivos usan la variable `${env:USERPROFILE}` en la ruta del PATH:
 ```
 
 `${env:ProgramFiles}` y `${env:USERPROFILE}` son variables de entorno de Windows que VS Code resuelve automáticamente al ejecutar la tarea: la primera apunta a la carpeta de instalación de programas del sistema, y la segunda a la carpeta personal del usuario que la ejecuta. Se usan en vez de escribir una ruta absoluta (unidad de disco y carpetas específicas) para que la configuración funcione igual para cualquier persona que clone el repositorio, sin exponer ni depender de la ruta local de quien la creó. Esto es necesario porque Go se instala por defecto dentro de `%ProgramFiles%\Go\bin`, y el binario `wails.exe` (instalado con `go install`) vive dentro de `%USERPROFILE%\go\bin`; ambas carpetas deben estar en el PATH para que los comandos `go` y `wails` se reconozcan dentro de la terminal que VS Code abre al ejecutar la configuración.
+
+---
+
+## 🔑 Claves de API de Proveedores de IA
+
+Merlin Code se conecta a cuatro proveedores de IA (Anthropic, OpenAI, Google y DeepSeek) usando **tu propia clave de API**, configurable desde la pantalla de Configuración de la aplicación. Es importante entender qué es una clave de API y cómo funciona antes de usarla:
+
+- **¿Qué es una API Key?** Es una credencial secreta, única para tu cuenta, que identifica y autoriza tus peticiones ante el proveedor de IA. Funciona como una contraseña: cualquiera que la obtenga puede usarla para generar consumo a tu nombre, así que nunca debe compartirse ni subirse a un repositorio público.
+- **Las API Keys son de pago.** Cada proveedor cobra por el uso real del modelo (tokens de entrada y salida), normalmente mediante saldo prepago o facturación mensual asociada a tu cuenta en la plataforma del proveedor. Merlin Code **no cobra nada por su uso ni actúa como intermediario de facturación**: el consumo se factura directamente entre tú y el proveedor (Anthropic, OpenAI, Google o DeepSeek), según sus propias tarifas por modelo.
+- **Dónde obtener una clave:**
+  - Anthropic: [console.anthropic.com](https://console.anthropic.com/)
+  - OpenAI: [platform.openai.com](https://platform.openai.com/)
+  - Google AI (Gemini): [aistudio.google.com](https://aistudio.google.com/)
+  - DeepSeek: [platform.deepseek.com](https://platform.deepseek.com/)
+- **Cómo se guarda:** al validar una clave desde la app, Merlin Code la verifica en vivo contra el proveedor y, solo si es válida, la persiste localmente en `%APPDATA%/merlincode/ai_providers.json`. La clave nunca se envía a servidores de Merlin Code ni a terceros distintos del proveedor correspondiente.
+- **Admin Key (opcional):** algunos proveedores (por ejemplo Anthropic) requieren una clave adicional de administrador, a nivel de organización, únicamente para poder consultar el consumo y costo real de la cuenta. Es completamente opcional: sin ella, la app sigue funcionando con la clave normal y muestra una estimación local del consumo en lugar del dato exacto de facturación.
+- **Probar Conexión:** la sección de prueba de mensaje en Configuración consume tokens reales de tu cuenta (usando tu clave estándar, nunca la Admin Key), por lo que también genera un costo mínimo asociado a tu plan con el proveedor.
 
 ---
 
