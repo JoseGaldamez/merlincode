@@ -161,6 +161,18 @@ wails dev
 - Genera automáticamente los bindings y tipos TypeScript en `frontend/wailsjs/` cuando modificas métodos en `app.go`.
 - Abre la ventana de escritorio de Merlin Code. Si modificas cualquier archivo del frontend o del backend, la aplicación se actualizará automáticamente.
 
+### 4. Levantar el proyecto desde VS Code (Run and Debug)
+
+El repositorio incluye configuración lista en `.vscode/launch.json` y `.vscode/tasks.json` para iniciar `wails dev` directamente desde la pestaña **Run and Debug** (`Ctrl+Shift+D`), seleccionando **"Wails: Run (wails dev)"** y presionando `F5`.
+
+Ambos archivos usan la variable `${env:USERPROFILE}` en la ruta del PATH:
+
+```jsonc
+"Path": "${env:ProgramFiles}\\Go\\bin;${env:USERPROFILE}\\go\\bin;${env:Path}"
+```
+
+`${env:ProgramFiles}` y `${env:USERPROFILE}` son variables de entorno de Windows que VS Code resuelve automáticamente al ejecutar la tarea: la primera apunta a la carpeta de instalación de programas del sistema, y la segunda a la carpeta personal del usuario que la ejecuta. Se usan en vez de escribir una ruta absoluta (unidad de disco y carpetas específicas) para que la configuración funcione igual para cualquier persona que clone el repositorio, sin exponer ni depender de la ruta local de quien la creó. Esto es necesario porque Go se instala por defecto dentro de `%ProgramFiles%\Go\bin`, y el binario `wails.exe` (instalado con `go install`) vive dentro de `%USERPROFILE%\go\bin`; ambas carpetas deben estar en el PATH para que los comandos `go` y `wails` se reconozcan dentro de la terminal que VS Code abre al ejecutar la configuración.
+
 ---
 
 ## 📦 Compilación para Producción

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Wails: Run (wails dev)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "wails dev",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "Path": "${env:ProgramFiles}\\Go\\bin;${env:USERPROFILE}\\go\\bin;${env:Path}"
+      }
+    }
+  ]
+}

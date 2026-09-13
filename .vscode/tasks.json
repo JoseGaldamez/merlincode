@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "wails: dev",
+      "type": "shell",
+      "command": "wails",
+      "args": ["dev"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "Path": "${env:ProgramFiles}\\Go\\bin;${env:USERPROFILE}\\go\\bin;${env:Path}"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}
