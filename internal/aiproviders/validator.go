@@ -32,6 +32,17 @@ type UsageFetcher interface {
 	FetchUsage(ctx context.Context, apiKey string, adminKey string) (domain.ProviderUsageResult, error)
 }
 
+// MessageTester es un contrato opcional: los proveedores que expongan una API de chat/mensajes
+// lo implementan para permitir enviar un mensaje de prueba real desde la interfaz y confirmar
+// que la clave funciona de punta a punta (y que ese consumo quedará reflejado en el reporte de uso).
+type MessageTester interface {
+	// SendTestMessage envía un mensaje real y mínimo al modelo del proveedor usando la clave de
+	// API estándar (nunca la Admin Key, que en la mayoría de proveedores no tiene permiso para
+	// generar respuestas) y retorna el texto de la respuesta. Si model viene vacío, cada
+	// proveedor usa un modelo por defecto económico.
+	SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error)
+}
+
 // httpClient es compartido por todos los validadores con un timeout conservador
 // para evitar que la UI quede bloqueada esperando un proveedor caído o lento.
 var httpClient = &http.Client{

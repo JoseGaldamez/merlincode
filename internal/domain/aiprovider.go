@@ -43,3 +43,12 @@ type ProviderUsageResult struct {
 	CostUsd          float64 `json:"costUsd,omitempty"`
 	BalanceText      string  `json:"balanceText,omitempty"`
 }
+
+// TestMessageResult es la respuesta real obtenida al enviar un mensaje de prueba a un proveedor
+// de IA, usado para confirmar en la interfaz que la clave de API funciona de punta a punta.
+type TestMessageResult struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	ResponseText string `json:"responseText,omitempty"`
+	Model        string `json:"model,omitempty"`
+}

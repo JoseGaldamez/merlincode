@@ -154,6 +154,95 @@ func fetchAnthropicUsageTotals(ctx context.Context, adminKey string, startingAt 
 	return prompt, completion, nil
 }
 
+// anthropicMessagesRequest y anthropicMessagesResponse reflejan la forma mínima necesaria de
+// /v1/messages (https://api.anthropic.com/v1/messages) para enviar y leer un mensaje de prueba.
+type anthropicMessagesRequest struct {
+	Model     string `json:"model"`
+	MaxTokens int    `json:"max_tokens"`
+	Messages  []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	} `json:"messages"`
+}
+
+type anthropicMessagesResponse struct {
+	Content []struct {
+		Text string `json:"text"`
+	} `json:"content"`
+	Model string `json:"model"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// SendTestMessage envía un mensaje real y mínimo a /v1/messages usando la clave de API estándar
+// (la Admin Key no tiene permiso para generar respuestas, solo para consultar datos de organización).
+// Si model viene vacío, usa un modelo económico por defecto.
+func (AnthropicValidator) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+	apiKey = strings.TrimSpace(apiKey)
+	message = strings.TrimSpace(message)
+	model = strings.TrimSpace(model)
+	if apiKey == "" {
+		return domain.TestMessageResult{Success: false, Message: "Configura y verifica una clave de API primero."}, nil
+	}
+	if message == "" {
+		message = "Responde brevemente: ¿estás funcionando correctamente?"
+	}
+	if model == "" {
+		model = "claude-3-5-haiku-20241022"
+	}
+
+	reqBody := anthropicMessagesRequest{Model: model, MaxTokens: 256}
+	reqBody.Messages = []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}{{Role: "user", Content: message}}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return domain.TestMessageResult{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.anthropic.com/v1/messages", strings.NewReader(string(payload)))
+	if err != nil {
+		return domain.TestMessageResult{}, err
+	}
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return domain.TestMessageResult{Success: false, Message: "No se pudo conectar con Anthropic: " + err.Error()}, nil
+	}
+	defer resp.Body.Close()
+
+	var parsed anthropicMessagesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return domain.TestMessageResult{Success: false, Message: "No se pudo interpretar la respuesta de Anthropic."}, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("Anthropic respondió con estado inesperado (%d).", resp.StatusCode)
+		if parsed.Error != nil && parsed.Error.Message != "" {
+			errMsg = parsed.Error.Message
+		}
+		return domain.TestMessageResult{Success: false, Message: errMsg}, nil
+	}
+
+	var text string
+	for _, c := range parsed.Content {
+		text += c.Text
+	}
+
+	return domain.TestMessageResult{
+		Success:      true,
+		Message:      "El modelo respondió correctamente. Este consumo debería aparecer en el reporte de uso en unos minutos.",
+		ResponseText: text,
+		Model:        parsed.Model,
+	}, nil
+}
+
 func fetchAnthropicCostTotal(ctx context.Context, adminKey string, startingAt string) (float64, error) {
 	endpoint := "https://api.anthropic.com/v1/organizations/cost_report?starting_at=" + url.QueryEscape(startingAt)
 

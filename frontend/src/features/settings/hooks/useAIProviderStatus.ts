@@ -6,6 +6,7 @@ import {
   SaveAIProviderAdminKey,
   ClearAIProviderAdminKey,
   GetAIProviderUsage,
+  SendAIProviderTestMessage,
 } from '../../../../wailsjs/go/main/App';
 import { domain } from '../../../../wailsjs/go/models';
 
@@ -23,6 +24,7 @@ export function useAIProviderStatus() {
   const [validatingProviderId, setValidatingProviderId] = useState<string | null>(null);
   const [usages, setUsages] = useState<ProviderUsageMap>({});
   const [loadingUsageProviderId, setLoadingUsageProviderId] = useState<string | null>(null);
+  const [sendingTestMessageProviderId, setSendingTestMessageProviderId] = useState<string | null>(null);
 
   const refreshStatuses = useCallback(async () => {
     try {
@@ -111,6 +113,18 @@ export function useAIProviderStatus() {
     [usages]
   );
 
+  const sendTestMessage = useCallback(
+    async (providerId: string, message: string, model: string): Promise<domain.TestMessageResult> => {
+      setSendingTestMessageProviderId(providerId);
+      try {
+        return await SendAIProviderTestMessage(providerId, message, model);
+      } finally {
+        setSendingTestMessageProviderId((current) => (current === providerId ? null : current));
+      }
+    },
+    []
+  );
+
   return {
     statuses,
     loadingStatuses,
@@ -123,5 +137,7 @@ export function useAIProviderStatus() {
     fetchUsage,
     getUsage,
     loadingUsageProviderId,
+    sendTestMessage,
+    sendingTestMessageProviderId,
   };
 }

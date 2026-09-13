@@ -119,6 +119,96 @@ func (OpenAIValidator) FetchUsage(ctx context.Context, _ string, adminKey string
 	}, nil
 }
 
+// openAIChatRequest y openAIChatResponse reflejan la forma mínima necesaria de
+// /v1/chat/completions para enviar y leer un mensaje de prueba.
+type openAIChatRequest struct {
+	Model     string `json:"model"`
+	MaxTokens int    `json:"max_tokens"`
+	Messages  []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	} `json:"messages"`
+}
+
+type openAIChatResponse struct {
+	Model   string `json:"model"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// SendTestMessage envía un mensaje real y mínimo a /v1/chat/completions usando la clave de API
+// estándar (la Admin Key de OpenAI no tiene permiso para generar respuestas, solo para
+// consultar datos de organización).
+func (OpenAIValidator) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+	apiKey = strings.TrimSpace(apiKey)
+	message = strings.TrimSpace(message)
+	model = strings.TrimSpace(model)
+	if apiKey == "" {
+		return domain.TestMessageResult{Success: false, Message: "Configura y verifica una clave de API primero."}, nil
+	}
+	if message == "" {
+		message = "Responde brevemente: ¿estás funcionando correctamente?"
+	}
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+
+	reqBody := openAIChatRequest{Model: model, MaxTokens: 256}
+	reqBody.Messages = []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}{{Role: "user", Content: message}}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return domain.TestMessageResult{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", strings.NewReader(string(payload)))
+	if err != nil {
+		return domain.TestMessageResult{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return domain.TestMessageResult{Success: false, Message: "No se pudo conectar con OpenAI: " + err.Error()}, nil
+	}
+	defer resp.Body.Close()
+
+	var parsed openAIChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return domain.TestMessageResult{Success: false, Message: "No se pudo interpretar la respuesta de OpenAI."}, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("OpenAI respondió con estado inesperado (%d).", resp.StatusCode)
+		if parsed.Error != nil && parsed.Error.Message != "" {
+			errMsg = parsed.Error.Message
+		}
+		return domain.TestMessageResult{Success: false, Message: errMsg}, nil
+	}
+
+	var text string
+	if len(parsed.Choices) > 0 {
+		text = parsed.Choices[0].Message.Content
+	}
+
+	return domain.TestMessageResult{
+		Success:      true,
+		Message:      "El modelo respondió correctamente. Este consumo debería aparecer en el reporte de uso en unos minutos.",
+		ResponseText: text,
+		Model:        parsed.Model,
+	}, nil
+}
+
 func fetchOpenAIUsageTotals(ctx context.Context, adminKey string, startTime int64) (prompt int64, completion int64, err error) {
 	endpoint := "https://api.openai.com/v1/organization/usage/completions?start_time=" +
 		strconv.FormatInt(startTime, 10) + "&bucket_width=1d&limit=1"

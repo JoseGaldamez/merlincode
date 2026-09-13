@@ -54,9 +54,17 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
   const [draftKey, setDraftKey] = useState('');
   const [validationResult, setValidationResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [modelFilter, setModelFilter] = useState('');
+  const [keyTab, setKeyTab] = useState<'api' | 'admin'>('api');
   const [showAdminKey, setShowAdminKey] = useState(false);
   const [draftAdminKey, setDraftAdminKey] = useState('');
   const [adminKeySaved, setAdminKeySaved] = useState(false);
+  const [testMessage, setTestMessage] = useState('¿Estás funcionando correctamente?');
+  const [testMessageResult, setTestMessageResult] = useState<{
+    success: boolean;
+    message: string;
+    responseText?: string;
+    model?: string;
+  } | null>(null);
 
   const currentProvider = getProviderConfig(settings.modelProvider);
   const {
@@ -69,11 +77,14 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     fetchUsage,
     getUsage,
     loadingUsageProviderId,
+    sendTestMessage,
+    sendingTestMessageProviderId,
   } = useAIProviderStatus();
   const currentStatus = getStatus(settings.modelProvider);
   const isValidating = validatingProviderId === settings.modelProvider;
   const currentUsage = getUsage(settings.modelProvider);
   const isLoadingUsage = loadingUsageProviderId === settings.modelProvider;
+  const isSendingTestMessage = sendingTestMessageProviderId === settings.modelProvider;
 
   // Al cambiar de proveedor, limpiar el borrador y el resultado de validación:
   // cada proveedor mantiene su propio estado, totalmente desacoplado del resto
@@ -82,9 +93,11 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     setValidationResult(null);
     setShowApiKey(false);
     setModelFilter('');
+    setKeyTab('api');
     setDraftAdminKey('');
     setShowAdminKey(false);
     setAdminKeySaved(false);
+    setTestMessageResult(null);
   }, [settings.modelProvider]);
 
   // Al configurar/verificar la clave, consultar en vivo el consumo/costo o saldo real
@@ -116,6 +129,22 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     await clearKey(settings.modelProvider);
     setValidationResult(null);
     setDraftKey('');
+  };
+
+  const handleSendTestMessage = async () => {
+    setTestMessageResult(null);
+    try {
+      const result = await sendTestMessage(settings.modelProvider, testMessage.trim(), settings.model);
+      setTestMessageResult(result);
+      if (result.success) {
+        fetchUsage(settings.modelProvider);
+      }
+    } catch (err) {
+      setTestMessageResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'No se pudo enviar el mensaje de prueba.',
+      });
+    }
   };
 
   // Persistir tokens en localStorage si la telemetría viva se incrementa
@@ -239,17 +268,47 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
         </div>
       </div>
 
-      {/* Sección 2: Clave de API (Subida directamente debajo de los proveedores) */}
+      {/* Sección 2: Claves (API estándar y Admin, en tabs) */}
       <div>
         <div className="mb-3">
           <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
-            Clave de API ({currentProvider.name})
+            Credenciales ({currentProvider.name})
           </h3>
           <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
-            Credencial requerida para autenticar peticiones directamente con {currentProvider.name}.
+            {keyTab === 'api'
+              ? `Credencial requerida para autenticar peticiones directamente con ${currentProvider.name}.`
+              : `${currentProvider.name} requiere una Admin API Key independiente (a nivel de organización) para reportar el consumo de tokens y costo real de la cuenta. Es opcional: sin ella seguirás viendo una estimación local.`}
           </p>
         </div>
 
+        <div className="flex items-center gap-1 border-b border-border-subtle/60 mb-4">
+          <button
+            type="button"
+            onClick={() => setKeyTab('api')}
+            className={`px-4 py-2 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer -mb-px border-b-2 ${
+              keyTab === 'api'
+                ? 'border-accent-primary text-content-headline'
+                : 'border-transparent text-content-dim hover:text-content-headline hover:border-border-petrol/60'
+            }`}
+          >
+            Clave de API
+          </button>
+          {currentStatus.supportsAdminKey && (
+            <button
+              type="button"
+              onClick={() => setKeyTab('admin')}
+              className={`px-4 py-2 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer -mb-px border-b-2 ${
+                keyTab === 'admin'
+                  ? 'border-accent-primary text-content-headline'
+                  : 'border-transparent text-content-dim hover:text-content-headline hover:border-border-petrol/60'
+              }`}
+            >
+              Clave de Administrador
+            </button>
+          )}
+        </div>
+
+        {keyTab === 'api' && (
         <div className="divide-y divide-border-subtle/40 border-t border-b border-border-subtle/40">
           <div className="py-4 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             <div className="md:col-span-5">
@@ -359,105 +418,92 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             </div>
           </div>
         </div>
-      </div>
+        )}
 
-      {/* Sección 2.1: Admin API Key (solo proveedores que la requieren para reportar uso real, p.ej. Anthropic) */}
-      {currentStatus.supportsAdminKey && (
-        <div>
-          <div className="mb-3">
-            <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
-              Clave de Administrador ({currentProvider.name})
-            </h3>
-            <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
-              {currentProvider.name} requiere una Admin API Key independiente (a nivel de organización) para
-              reportar el consumo de tokens y costo real de la cuenta. Es opcional: sin ella seguirás viendo
-              una estimación local.
-            </p>
-          </div>
+        {keyTab === 'admin' && currentStatus.supportsAdminKey && (
+        <div className="divide-y divide-border-subtle/40 border-t border-b border-border-subtle/40">
+          <div className="py-4 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            <div className="md:col-span-5">
+              <label className="text-sm font-semibold text-content-headline block">
+                Admin API Key
+              </label>
+              <p className="text-xs text-content-dim mt-1 leading-relaxed">
+                Se almacena localmente, igual que tu clave de API, y solo se usa para consultar reportes de uso/costo.
+              </p>
+            </div>
 
-          <div className="divide-y divide-border-subtle/40 border-t border-b border-border-subtle/40">
-            <div className="py-4 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-              <div className="md:col-span-5">
-                <label className="text-sm font-semibold text-content-headline block">
-                  Admin API Key
-                </label>
-                <p className="text-xs text-content-dim mt-1 leading-relaxed">
-                  Se almacena localmente, igual que tu clave de API, y solo se usa para consultar reportes de uso/costo.
-                </p>
-              </div>
-
-              <div className="md:col-span-7 flex flex-col gap-2">
-                {currentStatus.hasAdminKey && (
-                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <IconShield size={14} className="text-accent-primary/90 shrink-0" />
-                      <span className="text-xs font-mono text-content-headline truncate">
-                        {currentStatus.maskedAdminKey}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await clearAdminKey(settings.modelProvider);
-                        setAdminKeySaved(false);
-                      }}
-                      className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors"
-                    >
-                      Eliminar
-                    </button>
+            <div className="md:col-span-7 flex flex-col gap-2">
+              {currentStatus.hasAdminKey && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <IconShield size={14} className="text-accent-primary/90 shrink-0" />
+                    <span className="text-xs font-mono text-content-headline truncate">
+                      {currentStatus.maskedAdminKey}
+                    </span>
                   </div>
-                )}
-
-                <div className="relative">
-                  <input
-                    type={showAdminKey ? 'text' : 'password'}
-                    className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
-                    value={draftAdminKey}
-                    onChange={(e) => {
-                      setDraftAdminKey(e.target.value);
-                      setAdminKeySaved(false);
-                    }}
-                    placeholder={currentStatus.hasAdminKey ? 'Ingresa una nueva Admin Key para reemplazarla' : 'sk-ant-admin...'}
-                    spellCheck={false}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminKey(!showAdminKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
-                    title={showAdminKey ? 'Ocultar clave' : 'Mostrar clave'}
-                  >
-                    {showAdminKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!draftAdminKey.trim()) return;
-                      await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
-                      setDraftAdminKey('');
-                      setAdminKeySaved(true);
-                      fetchUsage(settings.modelProvider);
+                      await clearAdminKey(settings.modelProvider);
+                      setAdminKeySaved(false);
                     }}
-                    disabled={!draftAdminKey.trim()}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors"
                   >
-                    Guardar Admin Key
+                    Eliminar
                   </button>
                 </div>
+              )}
 
-                {adminKeySaved && (
-                  <div className="flex items-start gap-1.5 text-xs mt-0.5 text-emerald-400">
-                    <IconCheck size={13} className="shrink-0 mt-0.5" />
-                    <span>Admin Key guardada. Consultando consumo real...</span>
-                  </div>
-                )}
+              <div className="relative">
+                <input
+                  type={showAdminKey ? 'text' : 'password'}
+                  className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
+                  value={draftAdminKey}
+                  onChange={(e) => {
+                    setDraftAdminKey(e.target.value);
+                    setAdminKeySaved(false);
+                  }}
+                  placeholder={currentStatus.hasAdminKey ? 'Ingresa una nueva Admin Key para reemplazarla' : 'sk-ant-admin...'}
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminKey(!showAdminKey)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
+                  title={showAdminKey ? 'Ocultar clave' : 'Mostrar clave'}
+                >
+                  {showAdminKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+                </button>
               </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!draftAdminKey.trim()) return;
+                    await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
+                    setDraftAdminKey('');
+                    setAdminKeySaved(true);
+                    fetchUsage(settings.modelProvider);
+                  }}
+                  disabled={!draftAdminKey.trim()}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Guardar Admin Key
+                </button>
+              </div>
+
+              {adminKeySaved && (
+                <div className="flex items-start gap-1.5 text-xs mt-0.5 text-emerald-400">
+                  <IconCheck size={13} className="shrink-0 mt-0.5" />
+                  <span>Admin Key guardada. Consultando consumo real...</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {/* Sección 2.5: Modelos disponibles para la cuenta configurada */}
       {currentStatus.configured && currentStatus.verified && (
@@ -542,6 +588,93 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
               Esta cuenta no reportó modelos disponibles.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Sección 2.0: Probar Conexión (envía un mensaje real usando la clave de API estándar, no la Admin Key) */}
+      {currentStatus.configured && currentStatus.verified && (
+        <div>
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
+              Probar Conexión ({currentProvider.name})
+            </h3>
+            <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
+              Envía un mensaje real al modelo para confirmar que la clave funciona de punta a punta. Se usa
+              tu clave de API estándar, no la Admin Key (la Admin Key solo consulta reportes de organización
+              y no tiene permiso para generar respuestas).
+            </p>
+            <p className="text-xs text-content-dim mt-1.5">
+              Modelo a probar:{' '}
+              <span className="font-mono text-content-headline">
+                {settings.model || 'selecciona uno en Modelos Disponibles'}
+              </span>
+            </p>
+          </div>
+
+          <div className="divide-y divide-border-subtle/40 border-t border-b border-border-subtle/40">
+            <div className="py-4 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              <div className="md:col-span-5">
+                <label className="text-sm font-semibold text-content-headline block">
+                  Mensaje de prueba
+                </label>
+                <p className="text-xs text-content-dim mt-1 leading-relaxed">
+                  El consumo generado debería reflejarse en el reporte de uso real en unos minutos.
+                </p>
+              </div>
+
+              <div className="md:col-span-7 flex flex-col gap-2">
+                <input
+                  type="text"
+                  className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2.5 text-sm text-content-headline outline-none transition-colors"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  placeholder="Escribe un mensaje para probar la conexión..."
+                  spellCheck={false}
+                />
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSendTestMessage}
+                    disabled={!testMessage.trim() || isSendingTestMessage}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isSendingTestMessage && <IconRefresh size={12} className="animate-spin" />}
+                    {isSendingTestMessage ? 'Enviando mensaje...' : 'Enviar mensaje de prueba'}
+                  </button>
+                </div>
+
+                {testMessageResult && (
+                  <div className="flex flex-col gap-1.5 mt-0.5">
+                    <div
+                      className={`flex items-start gap-1.5 text-xs ${
+                        testMessageResult.success ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {testMessageResult.success ? (
+                        <IconCheck size={13} className="shrink-0 mt-0.5" />
+                      ) : (
+                        <IconClose size={13} className="shrink-0 mt-0.5" />
+                      )}
+                      <span>{testMessageResult.message}</span>
+                    </div>
+                    {testMessageResult.responseText && (
+                      <div className="p-3 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                        {testMessageResult.model && (
+                          <p className="text-[10px] font-mono text-content-dim mb-1.5">
+                            {testMessageResult.model}
+                          </p>
+                        )}
+                        <p className="text-xs text-content-headline whitespace-pre-wrap leading-relaxed">
+                          {testMessageResult.responseText}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

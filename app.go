@@ -21,6 +21,7 @@ type WindowState = domain.WindowState
 type ProviderStatus = domain.ProviderStatus
 type ProviderValidationResult = domain.ProviderValidationResult
 type ProviderUsageResult = domain.ProviderUsageResult
+type TestMessageResult = domain.TestMessageResult
 
 // App actúa como la fachada (Facade) que Wails expone al frontend de React
 type App struct {
@@ -168,4 +169,11 @@ func (a *App) ClearAIProviderAdminKey(providerID string) {
 // GetAIProviderUsage consulta en vivo el consumo/costo o saldo real de la cuenta de un proveedor
 func (a *App) GetAIProviderUsage(providerID string) (ProviderUsageResult, error) {
 	return a.aiProviderService.GetProviderUsage(context.Background(), providerID)
+}
+
+// SendAIProviderTestMessage envía un mensaje real de prueba al proveedor indicado usando su clave
+// de API estándar y el modelo seleccionado, para confirmar en la interfaz que la conexión funciona
+// de punta a punta con ese modelo específico
+func (a *App) SendAIProviderTestMessage(providerID string, message string, model string) (TestMessageResult, error) {
+	return a.aiProviderService.SendTestMessage(context.Background(), providerID, message, model)
 }

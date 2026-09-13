@@ -231,6 +231,34 @@ func (s *Service) GetProviderUsage(ctx context.Context, providerID string) (doma
 	return uf.FetchUsage(ctx, cred.APIKey, cred.AdminAPIKey)
 }
 
+// SendTestMessage envía un mensaje real de prueba al proveedor usando su clave de API estándar,
+// cuando su implementación soporta MessageTester. Sirve para confirmar en vivo que la clave
+// funciona de punta a punta y que el consumo quedará reflejado en el reporte de uso real.
+func (s *Service) SendTestMessage(ctx context.Context, providerID string, message string, model string) (domain.TestMessageResult, error) {
+	validator, ok := s.validators[providerID]
+	if !ok {
+		return domain.TestMessageResult{}, domain.ErrUnknownAIProvider
+	}
+
+	mt, ok := validator.(MessageTester)
+	if !ok {
+		return domain.TestMessageResult{
+			Success: false,
+			Message: "Este proveedor no admite el envío de mensajes de prueba desde la interfaz.",
+		}, nil
+	}
+
+	s.mu.RLock()
+	cred := s.credentials[providerID]
+	s.mu.RUnlock()
+
+	if cred.APIKey == "" {
+		return domain.TestMessageResult{Success: false, Message: "Configura y verifica una clave de API primero."}, nil
+	}
+
+	return mt.SendTestMessage(ctx, cred.APIKey, message, model)
+}
+
 // GetRawAPIKey retorna la clave completa almacenada de un proveedor para uso interno del backend
 // (por ejemplo, al realizar peticiones reales de chat). Nunca debe exponerse tal cual al frontend.
 func (s *Service) GetRawAPIKey(providerID string) (string, bool) {
