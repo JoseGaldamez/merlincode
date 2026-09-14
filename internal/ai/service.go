@@ -75,6 +75,7 @@ type Service struct {
 	validators   map[string]Provider
 	secretStore  SecretStore
 	initErr      error
+	streamMu     sync.Mutex
 	testStatesMu sync.Mutex
 	testStates   map[string]*providerTestState
 }
@@ -202,7 +203,7 @@ func (s *Service) loadAndMigrate(filePath string) error {
 		return fmt.Errorf("%w: no se pudo inspeccionar la metadata: %v", domain.ErrProviderMetadataUnavailable, err)
 	}
 	// Restringir el archivo antes de leer posibles secretos heredados.
-	if err := os.Chmod(filePath, 0600); err != nil {
+	if err := config.EnsurePrivateFile(filePath); err != nil {
 		return fmt.Errorf("%w: no se pudieron restringir los permisos de la metadata: %v", domain.ErrProviderMetadataUnavailable, err)
 	}
 	data, err := os.ReadFile(filePath)
@@ -298,6 +299,9 @@ func (s *Service) hydrateFromKeyring() error {
 // persistCredentialsLocked serializa los metadatos no sensibles a disco de forma atómica.
 // Requiere tener s.mu adquirido en modo Lock.
 func (s *Service) persistCredentialsLocked() error {
+	if s.filePath == "" {
+		return domain.ErrProviderMetadataUnavailable
+	}
 	redacted := make(map[string]persistedProviderMetadata, len(s.credentials))
 	for id, cred := range s.credentials {
 		redacted[id] = persistedProviderMetadata{
@@ -318,7 +322,7 @@ func (s *Service) persistCredentialsLocked() error {
 		return err
 	}
 	if _, err := os.Stat(s.filePath); err == nil {
-		if err := os.Chmod(s.filePath, 0600); err != nil {
+		if err := config.EnsurePrivateFile(s.filePath); err != nil {
 			return fmt.Errorf("%w: no se pudieron corregir los permisos existentes: %v", domain.ErrProviderMetadataUnavailable, err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -332,7 +336,7 @@ func (s *Service) persistCredentialsLocked() error {
 	tmpPath := tmpFile.Name()
 	defer func() { _ = os.Remove(tmpPath) }() // Limpieza best-effort; el error principal tiene prioridad.
 
-	if err := tmpFile.Chmod(0600); err != nil {
+	if err := config.EnsurePrivateFile(tmpPath); err != nil {
 		if closeErr := tmpFile.Close(); closeErr != nil {
 			return fmt.Errorf("%w: no se pudieron restringir los permisos temporales: %v", domain.ErrProviderMetadataUnavailable, errors.Join(err, closeErr))
 		}
@@ -354,7 +358,7 @@ func (s *Service) persistCredentialsLocked() error {
 	if err := os.Rename(tmpPath, s.filePath); err != nil {
 		return fmt.Errorf("%w: no se pudo reemplazar atómicamente la metadata: %v", domain.ErrProviderMetadataUnavailable, err)
 	}
-	if err := os.Chmod(s.filePath, 0600); err != nil {
+	if err := config.EnsurePrivateFile(s.filePath); err != nil {
 		return fmt.Errorf("%w: no se pudieron fijar permisos privados en la metadata: %v", domain.ErrProviderMetadataUnavailable, err)
 	}
 	return nil
@@ -448,9 +452,10 @@ func (s *Service) refreshProviderSecretsLocked(providerID string) (bool, bool, e
 		return false, false, nil
 	}
 	cred.ProviderID = providerID
+	changedKey := cred.APIKey != apiKey
 	cred.APIKey = apiKey
 	cred.AdminAPIKey = adminKey
-	if !hasAPIKey {
+	if !hasAPIKey || changedKey {
 		cred.Verified = false
 		cred.VerifiedAt = ""
 		cred.AccountInfo = ""
@@ -485,16 +490,16 @@ func (s *Service) ValidateAndSaveKey(ctx context.Context, providerID string, api
 	}
 
 	trimmedKey := strings.TrimSpace(apiKey)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	previousSecret, previousExists, err := s.readSecret(providerID)
 	if err != nil {
 		return domain.ProviderValidationResult{}, err
 	}
 	if err := s.setSecretVerified(providerID, trimmedKey); err != nil {
-		return domain.ProviderValidationResult{}, err
+		_, _, refreshErr := s.refreshProviderSecretsLocked(providerID)
+		return domain.ProviderValidationResult{}, errors.Join(err, refreshErr)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	models := result.Models
 	if len(models) == 0 {
@@ -506,6 +511,7 @@ func (s *Service) ValidateAndSaveKey(ctx context.Context, providerID string, api
 	s.credentials[providerID] = domain.ProviderCredential{
 		ProviderID:  providerID,
 		APIKey:      trimmedKey,
+		AdminAPIKey: s.credentials[providerID].AdminAPIKey,
 		Verified:    true,
 		VerifiedAt:  time.Now().UTC().Format(time.RFC3339),
 		AccountInfo: result.AccountInfo,
@@ -518,7 +524,8 @@ func (s *Service) ValidateAndSaveKey(ctx context.Context, providerID string, api
 			delete(s.credentials, providerID)
 		}
 		rollbackErr := s.restoreSecret(providerID, previousSecret, previousExists)
-		return domain.ProviderValidationResult{}, errors.Join(err, rollbackErr)
+		_, _, refreshErr := s.refreshProviderSecretsLocked(providerID)
+		return domain.ProviderValidationResult{}, errors.Join(err, rollbackErr, refreshErr)
 	}
 
 	return result, nil
@@ -557,16 +564,16 @@ func (s *Service) SaveAdminKey(providerID string, adminKey string) error {
 
 	trimmedAdminKey := strings.TrimSpace(adminKey)
 	account := adminKeyringAccount(providerID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	previousSecret, previousExists, err := s.readSecret(account)
 	if err != nil {
 		return err
 	}
 	if err := s.setSecretVerified(account, trimmedAdminKey); err != nil {
-		return err
+		_, _, refreshErr := s.refreshProviderSecretsLocked(providerID)
+		return errors.Join(err, refreshErr)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	previousCredential, hadPreviousCredential := s.credentials[providerID]
 	cred := previousCredential
@@ -579,7 +586,9 @@ func (s *Service) SaveAdminKey(providerID string, adminKey string) error {
 		} else {
 			delete(s.credentials, providerID)
 		}
-		return errors.Join(err, s.restoreSecret(account, previousSecret, previousExists))
+		rollbackErr := s.restoreSecret(account, previousSecret, previousExists)
+		_, _, refreshErr := s.refreshProviderSecretsLocked(providerID)
+		return errors.Join(err, rollbackErr, refreshErr)
 	}
 	return nil
 }
@@ -727,54 +736,107 @@ func (s *Service) GetRawAPIKey(providerID string) (string, bool) {
 	return cred.APIKey, true
 }
 
-// StreamChat ejecuta la llamada en streaming token por token contra el proveedor configurado.
-func (s *Service) StreamChat(
-	ctx context.Context,
-	providerID string,
-	model string,
-	messages []domain.ChatMessage,
-	onChunk func(chunk domain.StreamChunk) error,
-) (*domain.ChatCompletionResult, error) {
-	if err := s.InitializationError(); err != nil {
-		return nil, err
+// ValidateChatRequest rejects untrusted model IDs and oversized history before persistence or HTTP.
+const MaxChatInputBytes = 256 * 1024
+const MaxChatMessages = 200
+const MaxChatOutputBytes = 2 * 1024 * 1024
+const ChatTimeout = 5 * time.Minute
+
+func ValidateChatRequest(providerID, model string, messages []domain.ChatMessage) error {
+	if _, ok := GetProviderConfig(providerID); !ok {
+		return domain.ErrUnknownAIProvider
 	}
-
-	providerID = strings.ToLower(strings.TrimSpace(providerID))
-	if providerID == "gemini" {
-		providerID = "google"
-	}
-
-	validator, ok := s.validators[providerID]
-	if !ok {
-		return nil, domain.ErrUnknownAIProvider
-	}
-
-	streamer, ok := validator.(Streamer)
-	if !ok {
-		return nil, fmt.Errorf("el proveedor %s no implementa streaming", providerID)
-	}
-
-	s.mu.RLock()
-	cred, hasCred := s.credentials[providerID]
-	s.mu.RUnlock()
-
-	apiKey := ""
-	if hasCred && cred.APIKey != "" {
-		apiKey = cred.APIKey
-	} else if s.secretStore != nil {
-		if secret, err := s.secretStore.Get(providerID); err == nil {
-			apiKey = secret
-		}
-	}
-
-	if apiKey == "" {
-		return nil, fmt.Errorf("no hay una clave de API configurada para el proveedor %s", providerID)
-	}
-
-	model = strings.TrimSpace(model)
 	if model == "" {
 		model = GetOrchestratorModel(providerID)
 	}
+	if !IsModelAllowedForProvider(providerID, model, nil) {
+		return domain.ErrInvalidModel
+	}
+	if len(messages) == 0 {
+		return domain.ErrInvalidChat
+	}
+	if len(messages) > MaxChatMessages {
+		return domain.ErrChatTooLarge
+	}
+	size := 0
+	for _, m := range messages {
+		if m.Role != domain.ChatRoleUser && m.Role != domain.ChatRoleAssistant && m.Role != domain.ChatRoleSystem {
+			return domain.ErrInvalidChat
+		}
+		if len(m.Content) > MaxChatInputBytes-size {
+			return domain.ErrChatTooLarge
+		}
+		size += len(m.Content)
+	}
+	return nil
+}
 
-	return streamer.StreamChat(ctx, apiKey, model, messages, onChunk)
+// StreamChat bounds input, output, duration and concurrency independently of the WebView.
+func (s *Service) StreamChat(ctx context.Context, providerID, model string, messages []domain.ChatMessage,
+	onChunk func(domain.StreamChunk) error) (*domain.ChatCompletionResult, error) {
+	if err := s.InitializationError(); err != nil {
+		return nil, err
+	}
+	providerID = NormalizeProviderID(providerID)
+	if model == "" {
+		model = GetOrchestratorModel(providerID)
+	}
+	if err := ValidateChatRequest(providerID, model, messages); err != nil {
+		return nil, err
+	}
+	if !s.streamMu.TryLock() {
+		return nil, domain.ErrChatBusy
+	}
+	defer s.streamMu.Unlock()
+	streamer, ok := s.validators[providerID].(Streamer)
+	if !ok {
+		return nil, domain.ErrAIProviderOperationFailed
+	}
+	s.mu.RLock()
+	apiKey := s.credentials[providerID].APIKey
+	if apiKey == "" {
+		secret, _, err := s.readSecret(providerID)
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+		apiKey = secret
+	}
+	s.mu.RUnlock()
+	if apiKey == "" {
+		return nil, errors.New("no hay una clave de API configurada para el proveedor")
+	}
+	ctx, cancel := context.WithTimeout(ctx, ChatTimeout)
+	defer cancel()
+	size := 0
+	result, err := streamer.StreamChat(ctx, apiKey, model, messages, func(chunk domain.StreamChunk) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if len(chunk.Text) > MaxChatOutputBytes-size {
+			return domain.ErrChatOutputTooLarge
+		}
+		size += len(chunk.Text)
+		if len(chunk.Thinking) > MaxChatOutputBytes-size {
+			return domain.ErrChatOutputTooLarge
+		}
+		size += len(chunk.Thinking)
+		if onChunk != nil {
+			return onChunk(chunk)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, domain.ErrAIProviderOperationFailed
+	}
+	if len(result.Content) > MaxChatOutputBytes || len(result.Thinking) > MaxChatOutputBytes-len(result.Content) {
+		return nil, domain.ErrChatOutputTooLarge
+	}
+	return result, nil
 }

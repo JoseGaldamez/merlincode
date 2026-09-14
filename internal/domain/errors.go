@@ -3,6 +3,12 @@ package domain
 import "errors"
 
 var (
+	ErrFileTooLarge       = errors.New("el archivo excede el límite de 4 MiB")
+	ErrChatTooLarge       = errors.New("la conversación excede el límite de 256 KiB o 200 mensajes")
+	ErrInvalidChat        = errors.New("la solicitud de chat no es válida")
+	ErrChatBusy           = errors.New("ya hay una generación activa; espera a que finalice o detenla")
+	ErrChatOutputTooLarge = errors.New("la respuesta excede el límite de tamaño permitido")
+
 	// ErrNoActiveProject indica que no hay ninguna carpeta o proyecto activo seleccionado
 	ErrNoActiveProject = errors.New("no hay ningún proyecto activo seleccionado")
 

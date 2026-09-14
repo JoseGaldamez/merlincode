@@ -6,50 +6,63 @@ Endurecer la integración con proveedores de IA para que las API keys no puedan 
 
 Este plan cubre la integración actual con Anthropic, OpenAI, Google y DeepSeek.
 
-## Estado de validación (2026-09-13)
+## Estado de validación (2026-09-14)
 
-Resultado: **implementación parcial; conservar este archivo**. El checklist final fue
-corregido tras contrastarlo con el código, las pruebas, el estado de Git y las
-compilaciones locales.
+Las correcciones de código de esta revisión están implementadas. Conservar el plan
+hasta completar las comprobaciones manuales multiplataforma y ejecutar los workflows
+sobre el commit que contenga estos cambios.
 
-Validaciones que pasan:
+Validaciones realizadas en Windows:
 
-- `go test -count=1 ./...`
-- `go vet ./...`
-- `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
-- `npm run build`
-- `wails build` (compilación de producción sin limpieza previa)
+- `go test -count=1 ./...` y `go vet ./...`: pasan, incluidos sandbox/junctions,
+  carreras lógicas del llavero, cancelación, límites y errores SSE con centinelas.
+- `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`: sin vulnerabilidades encontradas.
+- `npm ci --include=dev`, `npm test` (9 pruebas), typecheck y build: pasan.
+- `npm audit`: cero vulnerabilidades reportadas, incluidas las nuevas dependencias
+  DOMPurify y jsdom (esta última solo para pruebas).
+- `wails build -clean`: pasa con Wails 2.15.0. Los bindings regenerados no tienen
+  diferencias de contenido con los versionados.
+- Windows Credential Manager: prueba real con cuenta sintética aislada; guardado,
+  lectura, borrado y comprobación de ausencia pasan sin usar claves de usuario.
+- ACL de Windows: prueba real de reparación de permisos heredados; solo se conceden
+  permisos al usuario actual y a LocalSystem. En Unix se mantienen 0700/0600.
 
-Pendientes o validaciones no concluyentes:
+Correcciones adicionales al plan original:
 
-- `npm audit` reporta 3 vulnerabilidades en dependencias de desarrollo: 1 alta y
-  2 moderadas, principalmente por Vite 3.2.11 y esbuild 0.15.x.
-- `npm ci` y `wails build -clean` no pudieron validarse mientras estaban activos
-  `wails`, `merlincode-dev.exe` y `esbuild.exe`, porque Windows bloqueó el reemplazo
-  de esos ejecutables. Deben repetirse con el entorno de desarrollo cerrado.
-- Wails permanece en `v2.12.0` en `go.mod`, la CLI y CI; el plan exige `v2.15.0`.
-- `.github/workflows/ci.yml`, `frontend/package-lock.json` y `frontend/wailsjs/`
-  todavía están sin seguimiento en Git. Un checkout limpio no recibe esos archivos;
-  además, el job frontend no genera bindings antes de compilar.
-- `wails.json` todavía usa `npm install`, por lo que el build de Wails no aplica
-  `npm ci` como instalación reproducible.
-- `persistedProviderMetadata` conserva `AccountInfo`; en DeepSeek ese texto contiene
-  el saldo, por lo que aún se persiste información financiera.
-- `resolveConfigFilePath`, `loadAndMigrate`, `hydrateFromKeyring` y algunos llamados
-  a `persistCredentialsLocked` descartan errores. Los fallos de lectura del llavero,
-  migración, permisos o persistencia no siempre llegan a la interfaz.
-- La migración no restringe primero los permisos del archivo heredado, no corrige
-  permisos de archivos/directorios existentes y no documenta el plazo de
-  compatibilidad del formato anterior.
-- En respuestas HTTP no exitosas se reenvía `error.message` del proveedor con solo
-  truncado, sin una sanitización por lista permitida.
-- Faltan pruebas específicas para el encabezado de Google y ausencia de la clave en
-  la URL, limpieza de `localStorage`, migración, `ErrNotFound`, borrado parcial,
-  concurrencia, límite de salida y cancelación durante el cierre.
-- CSP y llaveros nativos aún requieren las pruebas manuales multiplataforma descritas
-  en la fase 6.
-- No existe en la aplicación ni en la documentación para usuarios la recomendación
-  de rotar claves de Google que pudieron haberse expuesto en URLs.
+- Lectura, escritura y árbol utilizan un handle `os.Root` del proyecto seleccionado.
+  Se rechazan enlaces/junctions, rutas externas y archivos especiales; los archivos
+  tienen un límite de 4 MiB. El explorador valida primero la ruta. La comprobación
+  de permisos crea un temporal exclusivo y no sobrescribe nombres predecibles.
+- El HTML del chat se sanitiza con una lista limitada de etiquetas y atributos,
+  sin estilos, eventos, formularios, SVG ni esquemas de enlace fuera de HTTP(S).
+- Se elimina la configuración heredada del navegador también cuando coexiste con v2.
+- El streaming valida modelos y roles, limita la entrada a 256 KiB/200 mensajes,
+  la salida y el cuerpo SSE a 2 MiB y la duración a cinco minutos. Se admite una
+  generación simultánea; la cancelación conserva su registro hasta finalizar.
+  Todos los proveedores solicitan como máximo 4096 tokens de salida.
+- Los errores de streaming se sanitizan antes de la UI y SQLite; no se registran
+  cuerpos del proveedor ni errores internos de transporte.
+- Guardados y borrados del llavero se serializan junto con su estado en memoria.
+  Se reconcilian operaciones parciales y se conservan las claves admin al renovar
+  la clave principal. Persistir con una ruta vacía falla antes de tocar permisos.
+- La CSP de desarrollo autoriza el preámbulo de React con un nonce aleatorio por
+  arranque del servidor, limitado a loopback. Producción no permite scripts inline.
+- CI incluye pruebas con detector de carreras, vet, govulncheck, npm audit, typecheck,
+  build y compilación limpia de Wails. Go 1.26.6, Wails 2.15.0, Node 22.13.1 y npm
+  10.9.2 están fijados. Se documentó y mostró en ajustes la rotación de claves Google.
+
+Validaciones que siguen pendientes (no confundir con defectos corregidos):
+
+- `go test -race` local requiere CGO y un compilador C; este equipo no lo tiene.
+  El control está configurado en los runners de CI.
+- Ejecutar CI/release desde un checkout limpio del futuro commit. No se ha publicado
+  ni creado ningún commit o release durante esta revisión.
+- Verificación visual de la CSP y fuentes en el WebView nativo, tanto en desarrollo
+  como en producción. Hay pruebas automáticas del HTML/CSP, pero no sustituyen esa
+  comprobación visual ni certifican todas las plataformas.
+- macOS Keychain y Linux Secret Service (disponible/no disponible), instalación nueva
+  y actualización real desde una versión antigua. La migración y sus fallos cuentan
+  con pruebas automáticas usando almacenes aislados.
 
 ## Condiciones para publicar
 
@@ -68,7 +81,7 @@ Antes de generar un release deben completarse, como mínimo, las fases 1 a 4. El
 
 Archivos:
 
-- `internal/aiproviders/google.go`
+- `internal/ai/providers/google/client.go`
 
 Cambios:
 
@@ -87,11 +100,11 @@ Criterios de aceptación:
 
 Archivos:
 
-- `internal/aiproviders/validator.go`
-- `internal/aiproviders/anthropic.go`
-- `internal/aiproviders/openai.go`
-- `internal/aiproviders/google.go`
-- `internal/aiproviders/deepseek.go`
+- `internal/ai/transport/transport.go`
+- `internal/ai/providers/anthropic/client.go`
+- `internal/ai/providers/openai/client.go`
+- `internal/ai/providers/google/client.go`
+- `internal/ai/providers/deepseek/client.go`
 
 Cambios:
 
@@ -109,7 +122,7 @@ Criterios de aceptación:
 
 Archivo:
 
-- `internal/aiproviders/validator.go`
+- `internal/ai/transport/transport.go`
 
 Cambios:
 
@@ -159,7 +172,7 @@ Pruebas:
 Archivos:
 
 - `internal/domain/aiprovider.go`
-- `internal/aiproviders/service.go`
+- `internal/ai/service.go`
 
 Cambios:
 
@@ -179,7 +192,7 @@ Pruebas:
 
 Archivo:
 
-- `internal/aiproviders/keyring.go`
+- `internal/platform/keyring/keyring.go`
 
 Cambios:
 
@@ -193,8 +206,8 @@ Cambios:
 
 Archivos:
 
-- `internal/aiproviders/keyring.go`
-- `internal/aiproviders/service.go`
+- `internal/platform/keyring/keyring.go`
+- `internal/ai/service.go`
 - `app.go`
 - Hook y componentes de ajustes del frontend.
 
@@ -218,8 +231,8 @@ Pruebas:
 
 Archivos:
 
-- `internal/aiproviders/service.go`
-- Nuevo archivo opcional `internal/aiproviders/migration.go`
+- `internal/ai/service.go`
+- Nuevo archivo opcional `internal/ai/service.go`
 
 Cambios:
 
@@ -234,7 +247,7 @@ Cambios:
 
 Archivo:
 
-- `internal/aiproviders/service.go`
+- `internal/ai/service.go`
 
 Cambios:
 
@@ -280,7 +293,7 @@ Criterio de aceptación:
 
 Archivos:
 
-- `internal/aiproviders/service.go`
+- `internal/ai/service.go`
 - `app.go`
 - Implementaciones de cada proveedor.
 
@@ -343,28 +356,32 @@ Validación manual:
 
 ## Checklist final
 
-- [x] Google autentica mediante `x-goog-api-key`.
-- [ ] Ningún error público expone errores internos directamente ni mediante `%w`.
-- [ ] Los mensajes de error devueltos por los proveedores se sanitizan mediante una lista permitida.
+- [x] Google autentica mediante `x-goog-api-key`, incluido streaming.
+- [x] Errores públicos de proveedores sanitizados en la fachada, incluido streaming.
+- [x] Mensajes HTTP del proveedor clasificados sin reenviar cuerpos a UI o logs.
 - [x] Redirects entre hosts no reciben credenciales.
-- [x] Todas las respuestas HTTP tienen límite.
-- [x] `merlin_app_settings` elimina claves heredadas.
+- [x] Respuestas JSON y cuerpos SSE con límite acumulado.
+- [x] Preferencias del navegador sin secretos heredados, incluida coexistencia con v2.
 - [x] Los secretos tienen `json:"-"`.
-- [ ] El archivo de metadata no contiene balances ni claves.
-- [ ] Los errores del llavero se propagan en lectura, escritura, eliminación y migración.
-- [x] Se detectan secretos huérfanos.
-- [x] La migración no borra la única copia ante un fallo.
-- [ ] La migración restringe permisos antes de leer y reporta sus fallos a la interfaz.
-- [ ] Directorio y metadata utilizan y corrigen permisos restrictivos sin ignorar errores.
-- [x] La escritura de metadata es atómica.
-- [ ] Go de CI/release está fijado explícitamente en 1.26.5 o posterior.
-- [ ] Wails está alineado en `v2.15.0` en módulo, CLI y CI.
-- [ ] `package-lock.json` está versionado y CI/releases usan `npm ci`.
-- [ ] Los bindings Wails se generan o versionan de forma reproducible antes del typecheck.
-- [x] `govulncheck` forma parte de CI.
-- [x] Modelo, tamaño, concurrencia y salida se validan en Go.
-- [ ] `npm audit` no reporta vulnerabilidades conocidas aplicables.
-- [ ] Las pruebas de aceptación faltantes de las fases 1, 2, 3 y 5 están implementadas.
-- [ ] Fuentes locales y CSP funcionan en desarrollo y en el binario en pruebas manuales.
-- [ ] Pruebas Go, frontend y Wails pasan desde un clon limpio.
-- [ ] Usuarios que probaron Google con errores de red reciben recomendación de rotar la clave.
+- [x] Metadata sin balances ni claves.
+- [x] Errores del llavero propagados en lectura, escritura, eliminación y migración.
+- [x] Secretos huérfanos detectados.
+- [x] Migración conserva la única copia ante fallos.
+- [x] Permisos restringidos antes de leer y errores de migración visibles.
+- [x] Permisos reparados con 0700/0600 en Unix y ACL privadas en Windows.
+- [x] Metadata escrita mediante temporal, sincronización y reemplazo.
+- [x] Go de CI/release fijado en 1.26.6.
+- [x] Wails alineado en v2.15.0 en módulo, CLI y release/CI.
+- [x] Lockfile versionado y builds utilizan `npm ci`.
+- [x] Bindings versionados y regeneración sin diferencias de contenido.
+- [x] `govulncheck`, `go vet`, pruebas, auditoría npm y builds configurados en CI.
+- [x] Modelo, tamaño, concurrencia, duración y salida validados en Go.
+- [x] `npm audit` y `govulncheck` sin vulnerabilidades reportadas en esta revisión.
+- [x] Pruebas de aceptación de las fases 1, 2, 3 y 5 implementadas.
+- [x] Sandbox endurecido con root handle y pruebas de escape/junctions.
+- [x] HTML del chat sanitizado y probado con contenido malicioso.
+- [x] Recomendación de rotar claves Google publicada en README y ajustes locales.
+- [ ] Detector de carreras ejecutado satisfactoriamente en CI.
+- [ ] Fuentes y CSP verificadas visualmente en WebView de desarrollo y producción.
+- [ ] Pruebas Go, frontend y Wails verificadas desde checkout limpio en CI.
+- [ ] Llavero y actualización real verificados también en macOS y Linux.

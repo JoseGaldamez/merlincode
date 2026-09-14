@@ -14,7 +14,7 @@ func EnsurePrivateDirectory(dir string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("no se pudo crear el directorio privado %s: %w", dir, err)
 	}
-	if err := os.Chmod(dir, 0700); err != nil {
+	if err := restrictPermissions(dir, true); err != nil {
 		return fmt.Errorf("no se pudieron restringir los permisos del directorio %s: %w", dir, err)
 	}
 	return nil
@@ -41,4 +41,16 @@ func GetConfigFilePath(fileName string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(appDir, fileName), nil
+}
+
+// EnsurePrivateFile repairs permissions before reading any legacy credentials.
+func EnsurePrivateFile(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("la configuración no es un archivo regular")
+	}
+	return restrictPermissions(path, false)
 }

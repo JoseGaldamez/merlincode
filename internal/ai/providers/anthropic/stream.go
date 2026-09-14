@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -108,7 +107,6 @@ func (Client) StreamChat(
 	}
 
 	endpoint := "https://api.anthropic.com/v1/messages"
-	log.Printf("[Anthropic] Conectando a %s con modelo '%s'...", endpoint, model)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
@@ -121,12 +119,9 @@ func (Client) StreamChat(
 
 	resp, err := transport.StreamClient.Do(req)
 	if err != nil {
-		log.Printf("[Anthropic] Error de conexión/transporte: %v", err)
 		return nil, errors.New(transport.SanitizeTransportError(err, "Anthropic"))
 	}
 	defer transport.CloseHTTPResponse(resp)
-
-	log.Printf("[Anthropic] Respuesta HTTP: %d %s", resp.StatusCode, resp.Status)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp anthropicStreamEvent
@@ -143,7 +138,7 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SafeProviderHTTPError("Anthropic", resp.StatusCode))
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(transport.LimitedStreamReader(resp.Body))
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
@@ -201,12 +196,12 @@ func (Client) StreamChat(
 		}
 	}
 
-	if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		log.Printf("[Anthropic] Error leyendo stream: %v", err)
-		return nil, fmt.Errorf("error leyendo stream de Anthropic: %w", err)
+	if err := scanner.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
-
-	log.Printf("[Anthropic] Stream finalizado con éxito (prompt=%d, completion=%d)", promptTokens, completionTokens)
 
 	return &domain.ChatCompletionResult{
 		Content:          totalText.String(),

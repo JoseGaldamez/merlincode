@@ -96,3 +96,14 @@ describe('preferencias seguras', () => {
     expect(storage.getItem(LEGACY_SETTINGS_STORAGE_KEY)).toBeNull();
   });
 });
+
+it('purges legacy secrets even when v2 exists or is corrupt', () => {
+  for (const current of ['{}', '{invalid']) {
+    const storage = new MemoryStorage({
+      [SETTINGS_STORAGE_KEY]: current,
+      [LEGACY_SETTINGS_STORAGE_KEY]: '{"apiKey":"SENTINEL"}',
+    });
+    expect(JSON.stringify(loadAndMigrateSettings(storage))).not.toContain('SENTINEL');
+    expect(storage.getItem(LEGACY_SETTINGS_STORAGE_KEY)).toBeNull();
+  }
+});

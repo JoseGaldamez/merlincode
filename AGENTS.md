@@ -121,7 +121,7 @@ El confinamiento del proyecto y la seguridad de credenciales son propiedades cen
 
 ### Confinamiento de archivos del proyecto
 - Toda lectura, escritura, creación, borrado, ejecución o apertura de rutas debe validar primero que permanece dentro del proyecto activo. Usa `workspace.ValidatePathInProject` y devuelve los errores de `internal/domain` cuando corresponda.
-- La validación bloquea path traversal léxico (`..`), pero cualquier cambio que toque archivos debe tratar la evasión por symlink/junction como riesgo y cubrirla con pruebas antes de ampliar permisos.
+- La validación rechaza path traversal y enlaces/junctions. Las operaciones de archivos deben mantener el handle `os.Root` del proyecto seleccionado para evitar escapes durante cambios concurrentes de rutas. Conserva las pruebas de enlaces y el límite de 4 MiB por archivo.
 - Mantén el requisito de consentimiento: no se debe acceder a una carpeta hasta que la persona usuaria la haya seleccionado o activado explícitamente.
 
 ### Invariantes de seguridad de credenciales de IA

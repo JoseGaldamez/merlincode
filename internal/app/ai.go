@@ -13,6 +13,14 @@ func sanitizeAIProviderError(err error) error {
 		return nil
 	}
 	switch {
+	case errors.Is(err, domain.ErrChatTooLarge):
+		return domain.ErrChatTooLarge
+	case errors.Is(err, domain.ErrInvalidChat):
+		return domain.ErrInvalidChat
+	case errors.Is(err, domain.ErrChatBusy):
+		return domain.ErrChatBusy
+	case errors.Is(err, domain.ErrChatOutputTooLarge):
+		return domain.ErrChatOutputTooLarge
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return errors.New("la operación con el proveedor fue cancelada o excedió el tiempo de espera")
 	case errors.Is(err, domain.ErrRuntimeNotInitialized):

@@ -7,6 +7,7 @@ import (
 
 func TestAppIntegrationWorkspaceSandboxing(t *testing.T) {
 	app := NewApp()
+	defer app.workspaceService.Close()
 
 	// Operación sin proyecto activo debe fallar
 	if err := app.WriteProjectFile("test.txt", "hello"); err == nil {

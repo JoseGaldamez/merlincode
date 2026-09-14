@@ -13,6 +13,7 @@ import (
 
 func TestWorkspaceServiceBasicsAndSandboxing(t *testing.T) {
 	svc := NewService()
+	defer svc.Close()
 
 	// 1. Operar sin proyecto activo debe retornar ErrNoActiveProject
 	if err := svc.WriteFile("test.txt", "contenido"); !errors.Is(err, domain.ErrNoActiveProject) {
@@ -91,6 +92,7 @@ func TestWorkspaceConcurrency(t *testing.T) {
 	})
 
 	svc := NewService()
+	defer svc.Close()
 	_, _ = svc.SetActive(tempDir)
 
 	var wg sync.WaitGroup

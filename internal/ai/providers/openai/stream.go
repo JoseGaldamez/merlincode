@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -76,16 +75,18 @@ func (Client) StreamChat(
 	}
 
 	reqBody := struct {
-		Model         string       `json:"model"`
-		Messages      []chatReqMsg `json:"messages"`
-		Stream        bool         `json:"stream"`
-		StreamOptions *struct {
+		MaxOutputTokens int          `json:"max_completion_tokens"`
+		Model           string       `json:"model"`
+		Messages        []chatReqMsg `json:"messages"`
+		Stream          bool         `json:"stream"`
+		StreamOptions   *struct {
 			IncludeUsage bool `json:"include_usage"`
 		} `json:"stream_options,omitempty"`
 	}{
-		Model:    model,
-		Messages: reqMessages,
-		Stream:   true,
+		MaxOutputTokens: 4096,
+		Model:           model,
+		Messages:        reqMessages,
+		Stream:          true,
 		StreamOptions: &struct {
 			IncludeUsage bool `json:"include_usage"`
 		}{
@@ -99,7 +100,6 @@ func (Client) StreamChat(
 	}
 
 	endpoint := "https://api.openai.com/v1/chat/completions"
-	log.Printf("[OpenAI] Conectando a %s con modelo '%s'...", endpoint, model)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
@@ -111,12 +111,9 @@ func (Client) StreamChat(
 
 	resp, err := transport.StreamClient.Do(req)
 	if err != nil {
-		log.Printf("[OpenAI] Error de conexión/transporte: %v", err)
 		return nil, errors.New(transport.SanitizeTransportError(err, "OpenAI"))
 	}
 	defer transport.CloseHTTPResponse(resp)
-
-	log.Printf("[OpenAI] Respuesta HTTP: %d %s", resp.StatusCode, resp.Status)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp openAIStreamChunkResponse
@@ -137,7 +134,7 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SafeProviderHTTPError("OpenAI", resp.StatusCode))
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(transport.LimitedStreamReader(resp.Body))
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
@@ -197,12 +194,12 @@ func (Client) StreamChat(
 		}
 	}
 
-	if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		log.Printf("[OpenAI] Error leyendo stream: %v", err)
-		return nil, fmt.Errorf("error leyendo stream de OpenAI: %w", err)
+	if err := scanner.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
-
-	log.Printf("[OpenAI] Stream finalizado con éxito (prompt=%d, completion=%d)", promptTokens, completionTokens)
 
 	return &domain.ChatCompletionResult{
 		Content:          totalText.String(),

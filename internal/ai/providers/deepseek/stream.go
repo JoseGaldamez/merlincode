@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -76,13 +75,15 @@ func (Client) StreamChat(
 	}
 
 	reqBody := struct {
-		Model    string       `json:"model"`
-		Messages []chatReqMsg `json:"messages"`
-		Stream   bool         `json:"stream"`
+		MaxOutputTokens int          `json:"max_tokens"`
+		Model           string       `json:"model"`
+		Messages        []chatReqMsg `json:"messages"`
+		Stream          bool         `json:"stream"`
 	}{
-		Model:    model,
-		Messages: reqMessages,
-		Stream:   true,
+		MaxOutputTokens: 4096,
+		Model:           model,
+		Messages:        reqMessages,
+		Stream:          true,
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -91,7 +92,6 @@ func (Client) StreamChat(
 	}
 
 	endpoint := "https://api.deepseek.com/chat/completions"
-	log.Printf("[DeepSeek] Conectando a %s con modelo '%s'...", endpoint, model)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
@@ -103,12 +103,9 @@ func (Client) StreamChat(
 
 	resp, err := transport.StreamClient.Do(req)
 	if err != nil {
-		log.Printf("[DeepSeek] Error de conexión/transporte: %v", err)
 		return nil, errors.New(transport.SanitizeTransportError(err, "DeepSeek"))
 	}
 	defer transport.CloseHTTPResponse(resp)
-
-	log.Printf("[DeepSeek] Respuesta HTTP: %d %s", resp.StatusCode, resp.Status)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp deepSeekStreamChunkResponse
@@ -125,7 +122,7 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SafeProviderHTTPError("DeepSeek", resp.StatusCode))
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(transport.LimitedStreamReader(resp.Body))
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
@@ -185,12 +182,12 @@ func (Client) StreamChat(
 		}
 	}
 
-	if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		log.Printf("[DeepSeek] Error leyendo stream: %v", err)
-		return nil, fmt.Errorf("error leyendo stream de DeepSeek: %w", err)
+	if err := scanner.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
-
-	log.Printf("[DeepSeek] Stream finalizado con éxito (prompt=%d, completion=%d)", promptTokens, completionTokens)
 
 	return &domain.ChatCompletionResult{
 		Content:          totalText.String(),
