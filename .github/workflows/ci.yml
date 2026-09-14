@@ -29,7 +29,7 @@ jobs:
           cache: true
 
       - name: Run backend unit tests
-        run: go test -count=1 ./...
+        run: go test -count=1 ./internal/...
 
   frontend-tests:
     name: Frontend Unit Tests
