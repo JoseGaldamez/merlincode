@@ -3,7 +3,7 @@ import { Project } from '../../../types';
 import {
   SelectProjectFolder,
   SetActiveProject,
-} from '../../../../wailsjs/go/main/App';
+} from '../../../../wailsjs/go/app/App';
 
 const STORAGE_KEY_PROJECTS = 'merlin_projects_list';
 const STORAGE_KEY_ACTIVE_PROJECT = 'merlin_active_project';

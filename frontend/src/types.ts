@@ -14,8 +14,13 @@ export interface Message {
     code: string;
     filename?: string;
   };
-  status?: 'idle' | 'thinking' | 'done' | 'error';
+  status?: 'idle' | 'thinking' | 'synthesizing' | 'done' | 'error';
   action?: MessageAction;
+  startedAt?: number;
+  durationSeconds?: number;
+  tokensPrompt?: number;
+  tokensCompletion?: number;
+  feedback?: 'like' | 'dislike' | null;
 }
 
 export interface Session {
@@ -23,6 +28,8 @@ export interface Session {
   title: string;
   date: string;
   messagesCount: number;
+  projectId?: string;
+  projectPath?: string;
 }
 
 export interface Artifact {
@@ -49,5 +56,19 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+}
+
+export interface ChatStreamEvent {
+  sessionId?: string;
+  messageId: string;
+  type: 'status' | 'thinking' | 'content' | 'done' | 'error';
+  content?: string;
+  thinking?: string;
+  error?: string;
+  statusText?: string;
+  providerId?: string;
+  modelId?: string;
+  tokensPrompt?: number;
+  tokensCompletion?: number;
 }
 

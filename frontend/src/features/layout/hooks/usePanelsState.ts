@@ -3,7 +3,7 @@ import {
   SavePanelsState,
   GetPanelsState,
   SaveWindowSize,
-} from '../../../../wailsjs/go/main/App';
+} from '../../../../wailsjs/go/app/App';
 
 const STORAGE_KEY_LEFT = 'merlin_left_panel_open';
 const STORAGE_KEY_RIGHT = 'merlin_right_panel_open';

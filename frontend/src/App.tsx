@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import { Header, usePanelsState } from './features/layout';
 import { LeftSidebar, useSessions } from './features/sessions';
 import { RightSidebar, useArtifacts } from './features/artifacts';
 import { ChatArea, useChat } from './features/chat';
-import { SettingsModal } from './features/settings';
+import { SettingsModal, useSettingsForm, useAIProviderStatus } from './features/settings';
 import { useProjects } from './features/projects';
 
 export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Estado global de configuración de IA y estado de credenciales en el llavero
+  const { statuses, refreshStatuses } = useAIProviderStatus();
+  const { settings, updateSetting } = useSettingsForm();
 
   // Proyectos y espacios de trabajo
   const {
@@ -25,6 +29,7 @@ export function App() {
   const {
     sessions,
     activeSessionId,
+    setActiveSessionId,
     searchQuery,
     setSearchQuery,
     createSession,
@@ -32,21 +37,28 @@ export function App() {
     deleteSession,
     ensureSession,
     incrementSessionCount,
-  } = useSessions();
+    refreshSessions,
+  } = useSessions({ activeProject });
 
-  // Gestión de mensajes de chat y telemetría de IA
+  // Gestión de mensajes de chat y telemetría de IA con streaming en tiempo real
   const {
     messages,
     clearMessages,
     sendMessage,
     isLoading,
+    streamingStatusText,
+    cancelStream,
     telemetry,
     setTelemetry,
+    handleFeedback,
   } = useChat({
     activeProject,
     activeSessionId,
+    selectedProviderId: settings.modelProvider,
+    selectedModelId: settings.model,
     onEnsureSession: ensureSession,
     onIncrementSessionCount: incrementSessionCount,
+    onRefreshSessions: refreshSessions,
   });
 
   // Artefactos generados
@@ -68,12 +80,32 @@ export function App() {
     setRightWidth,
   } = usePanelsState();
 
+  // Refrescar estado de proveedores al cerrar el modal de ajustes
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      refreshStatuses();
+    }
+  }, [isSettingsOpen, refreshStatuses]);
+
   const handleNewSession = () => {
-    createSession();
+    if (isLoading) {
+      cancelStream();
+    }
+    setActiveSessionId('');
     clearMessages();
   };
 
+  const handleSelectSession = (id: string) => {
+    if (isLoading && activeSessionId !== id) {
+      cancelStream();
+    }
+    selectSession(id);
+  };
+
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+    if (isLoading && activeSessionId === id) {
+      cancelStream();
+    }
     deleteSession(id, e);
     if (activeSessionId === id) {
       clearMessages();
@@ -90,6 +122,9 @@ export function App() {
         onSearchChange={setSearchQuery}
         onOpenSettings={() => setIsSettingsOpen(true)}
         telemetry={telemetry}
+        statuses={statuses}
+        selectedProviderId={settings.modelProvider}
+        onSelectProvider={(provId) => updateSetting('modelProvider', provId)}
       />
 
       <div className="flex-1 flex overflow-hidden min-h-0 w-full">
@@ -100,7 +135,7 @@ export function App() {
           onWidthChange={setLeftWidth}
           sessions={sessions}
           activeSessionId={activeSessionId}
-          onSelectSession={selectSession}
+          onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
           onDeleteSession={handleDeleteSession}
           searchQuery={searchQuery}
@@ -113,8 +148,11 @@ export function App() {
           messages={messages}
           onSendMessage={sendMessage}
           isLoading={isLoading}
+          onCancelStream={cancelStream}
+          streamingStatusText={streamingStatusText}
           activeProjectName={activeProject?.name}
           onOpenFolder={openFolderDialog}
+          onFeedback={handleFeedback}
         />
 
         <RightSidebar

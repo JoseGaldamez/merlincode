@@ -138,35 +138,33 @@ export function loadAndMigrateSettings(storage: SettingsStorage): SettingsState 
 }
 
 export function useSettingsForm(
-  telemetry: AgentTelemetry,
-  onUpdateTelemetry: (updated: Partial<AgentTelemetry>) => void,
-  onClose: () => void
+  telemetry?: AgentTelemetry,
+  onUpdateTelemetry?: (updated: Partial<AgentTelemetry>) => void,
+  onClose?: () => void
 ) {
   const [settings, setSettings] = useState<SettingsState>(() => {
     const stored = loadAndMigrateSettings(localStorage);
     return {
       ...stored,
-      model: telemetry.activeModel || stored.model,
-      temperature: telemetry.temperature ?? stored.temperature,
+      model: telemetry?.activeModel || stored.model,
+      temperature: telemetry?.temperature ?? stored.temperature,
     };
   });
-
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Mantener sincronizado si la telemetría externa cambia
   useEffect(() => {
-    if (telemetry.activeModel) {
+    if (telemetry?.activeModel) {
       setSettings((prev) => ({
         ...prev,
         model: telemetry.activeModel || prev.model,
         temperature: telemetry.temperature ?? prev.temperature,
       }));
     }
-  }, [telemetry.activeModel, telemetry.temperature]);
+  }, [telemetry?.activeModel, telemetry?.temperature]);
 
   const updateSetting = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
     setSettings((prev) => {
-      // Si cambia el proveedor, sincronizar endpoint oficial y modelo adecuado
       if (key === 'modelProvider') {
         const nextProvider = getProviderConfig(value as string);
         const isCurrentModelValid = nextProvider.models.some((m) => m.id === prev.model);
@@ -181,9 +179,11 @@ export function useSettingsForm(
   };
 
   const handleSave = () => {
-    onUpdateTelemetry({
-      activeModel: settings.model,
-    });
+    if (onUpdateTelemetry) {
+      onUpdateTelemetry({
+        activeModel: settings.model,
+      });
+    }
 
     try {
       const payload = serializeAllowedSettings(settings);
@@ -193,7 +193,9 @@ export function useSettingsForm(
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
-      onClose();
+      if (onClose) {
+        onClose();
+      }
     }, 750);
   };
 

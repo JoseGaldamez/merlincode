@@ -7,6 +7,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+
+	"merlincode/internal/app"
 )
 
 //go:embed all:frontend/dist
@@ -14,8 +16,8 @@ var assets embed.FS
 
 func main() {
 	// Crear instancia de la fachada de la aplicación
-	app := NewApp()
-	initialWindowState := app.windowService.GetState()
+	application := app.NewApp()
+	initialWindowState := application.InitialWindowState()
 
 	// Iniciar la aplicación de escritorio Wails
 	err := wails.Run(&options.App{
@@ -29,10 +31,10 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 11, G: 14, B: 16, A: 1},
-		OnStartup:        app.startup,
-		OnBeforeClose:    app.beforeClose,
+		OnStartup:        application.Startup,
+		OnBeforeClose:    application.BeforeClose,
 		Bind: []interface{}{
-			app,
+			application,
 		},
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,

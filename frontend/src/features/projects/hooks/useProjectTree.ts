@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { domain } from '../../../../wailsjs/go/models';
-import { GetProjectTree, SetActiveProject } from '../../../../wailsjs/go/main/App';
+import { GetProjectTree, SetActiveProject } from '../../../../wailsjs/go/app/App';
 
 export function useProjectTree(projectPath?: string) {
   const [nodes, setNodes] = useState<domain.FileNode[]>([]);

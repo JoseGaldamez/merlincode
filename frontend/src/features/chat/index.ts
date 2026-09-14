@@ -5,4 +5,5 @@ export { ThoughtChain } from './components/ThoughtChain';
 export { CodeSnippetView } from './components/CodeSnippetView';
 export { ChatInput } from './components/ChatInput';
 export { EmptyChatState } from './components/EmptyChatState';
+export { ProviderSelector } from './components/ProviderSelector';
 export { useChat } from './hooks/useChat';

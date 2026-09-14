@@ -837,3 +837,118 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 		}
 	})
 }
+
+type fakeStreamer struct {
+	fakeValidator
+	chunks []domain.StreamChunk
+	result *domain.ChatCompletionResult
+	err    error
+}
+
+func (f *fakeStreamer) StreamChat(
+	ctx context.Context,
+	apiKey string,
+	model string,
+	messages []domain.ChatMessage,
+	onChunk func(chunk domain.StreamChunk) error,
+) (*domain.ChatCompletionResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	for _, c := range f.chunks {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+		if onChunk != nil {
+			if err := onChunk(c); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if f.result != nil {
+		return f.result, nil
+	}
+	return &domain.ChatCompletionResult{
+		Content: "test response",
+		Model:   model,
+	}, nil
+}
+
+func TestStreamChat_StreamingAndThinking(t *testing.T) {
+	streamer := &fakeStreamer{
+		fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
+		chunks: []domain.StreamChunk{
+			{Type: domain.ChunkTypeThinking, Thinking: "Analizando la pregunta..."},
+			{Type: domain.ChunkTypeThinking, Thinking: "Evaluando alternativas..."},
+			{Type: domain.ChunkTypeContent, Text: "¡Hola! "},
+			{Type: domain.ChunkTypeContent, Text: "¿En qué te puedo ayudar?"},
+		},
+		result: &domain.ChatCompletionResult{
+			Content:          "¡Hola! ¿En qué te puedo ayudar?",
+			Thinking:         "Analizando la pregunta...Evaluando alternativas...",
+			Model:            "gemini-3.8-flash",
+			TokensPrompt:     10,
+			TokensCompletion: 15,
+		},
+	}
+
+	svc, _, _ := newTestService(t, map[string]Provider{"google": streamer})
+	_ = svc.setSecretVerified("google", "sk-google-test-key")
+	_ = svc.hydrateFromKeyring()
+
+	var receivedThinking strings.Builder
+	var receivedContent strings.Builder
+
+	res, err := svc.StreamChat(
+		context.Background(),
+		"google",
+		"gemini-3.8-flash",
+		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "Hola"}},
+		func(chunk domain.StreamChunk) error {
+			if chunk.Type == domain.ChunkTypeThinking {
+				receivedThinking.WriteString(chunk.Thinking)
+			} else if chunk.Type == domain.ChunkTypeContent {
+				receivedContent.WriteString(chunk.Text)
+			}
+			return nil
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("StreamChat falló: %v", err)
+	}
+
+	if receivedThinking.String() != "Analizando la pregunta...Evaluando alternativas..." {
+		t.Fatalf("pensamiento esperado no coincide: %q", receivedThinking.String())
+	}
+	if receivedContent.String() != "¡Hola! ¿En qué te puedo ayudar?" {
+		t.Fatalf("contenido esperado no coincide: %q", receivedContent.String())
+	}
+	if res.TokensPrompt != 10 || res.TokensCompletion != 15 {
+		t.Fatalf("conteo de tokens inesperado: prompt=%d completion=%d", res.TokensPrompt, res.TokensCompletion)
+	}
+}
+
+func TestStreamChat_UnconfiguredProviderFails(t *testing.T) {
+	streamer := &fakeStreamer{
+		fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
+	}
+	svc, _, _ := newTestService(t, map[string]Provider{"openai": streamer})
+
+	_, err := svc.StreamChat(
+		context.Background(),
+		"openai",
+		"gpt-5.6-terra",
+		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "Hola"}},
+		nil,
+	)
+
+	if err == nil {
+		t.Fatal("se esperaba error al intentar streaming con un proveedor no configurado")
+	}
+	if !strings.Contains(err.Error(), "no hay una clave de API configurada") {
+		t.Fatalf("mensaje de error inesperado: %v", err)
+	}
+}

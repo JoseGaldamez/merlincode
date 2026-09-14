@@ -3,6 +3,8 @@ import logotipo from '../../../assets/images/logotipo.png';
 import { IconSearch, IconClose, IconSettings } from '../../../components/Icons';
 import { Project, AgentTelemetry } from '../../../types';
 import { ProjectSelector } from '../../projects/components/ProjectSelector';
+import { ProviderSelector } from '../../chat/components/ProviderSelector';
+import { ProviderStatusMap } from '../../settings/hooks/useAIProviderStatus';
 import { WindowControls } from './WindowControls';
 
 export interface HeaderProps {
@@ -13,6 +15,9 @@ export interface HeaderProps {
   onSearchChange: (query: string) => void;
   onOpenSettings?: () => void;
   telemetry?: AgentTelemetry;
+  statuses?: ProviderStatusMap;
+  selectedProviderId?: string;
+  onSelectProvider?: (providerId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,12 +27,15 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
   onOpenSettings,
+  statuses,
+  selectedProviderId,
+  onSelectProvider,
 }) => {
   return (
     <header className="wails-drag h-10 bg-[#0f1416] border-b border-border-subtle flex items-center justify-between select-none shrink-0 z-30">
-      {/* Logotipo y Selector de proyectos */}
-      <div className="flex items-center gap-3 pl-3.5 h-full">
-        <div className="wails-no-drag flex items-center">
+      {/* Logotipo, Selector de proyectos y Selector de proveedor de IA */}
+      <div className="flex items-center gap-2 pl-3.5 h-full">
+        <div className="wails-no-drag flex items-center mr-1">
           <img src={logotipo} alt="Merlin Code" className="h-5 w-auto object-contain" />
         </div>
 
@@ -35,6 +43,13 @@ export const Header: React.FC<HeaderProps> = ({
           projects={projects}
           activeProjectId={activeProjectId}
           onSelectProject={onSelectProject}
+        />
+
+        <ProviderSelector
+          statuses={statuses}
+          selectedProviderId={selectedProviderId}
+          onSelectProvider={onSelectProvider}
+          onOpenSettings={onOpenSettings}
         />
       </div>
 

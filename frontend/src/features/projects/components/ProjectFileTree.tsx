@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { domain } from '../../../../wailsjs/go/models';
-import { OpenDirectoryInExplorer } from '../../../../wailsjs/go/main/App';
+import { OpenDirectoryInExplorer } from '../../../../wailsjs/go/app/App';
 import {
   IconFolder,
   IconFolderOpen,

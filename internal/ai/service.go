@@ -726,3 +726,55 @@ func (s *Service) GetRawAPIKey(providerID string) (string, bool) {
 	}
 	return cred.APIKey, true
 }
+
+// StreamChat ejecuta la llamada en streaming token por token contra el proveedor configurado.
+func (s *Service) StreamChat(
+	ctx context.Context,
+	providerID string,
+	model string,
+	messages []domain.ChatMessage,
+	onChunk func(chunk domain.StreamChunk) error,
+) (*domain.ChatCompletionResult, error) {
+	if err := s.InitializationError(); err != nil {
+		return nil, err
+	}
+
+	providerID = strings.ToLower(strings.TrimSpace(providerID))
+	if providerID == "gemini" {
+		providerID = "google"
+	}
+
+	validator, ok := s.validators[providerID]
+	if !ok {
+		return nil, domain.ErrUnknownAIProvider
+	}
+
+	streamer, ok := validator.(Streamer)
+	if !ok {
+		return nil, fmt.Errorf("el proveedor %s no implementa streaming", providerID)
+	}
+
+	s.mu.RLock()
+	cred, hasCred := s.credentials[providerID]
+	s.mu.RUnlock()
+
+	apiKey := ""
+	if hasCred && cred.APIKey != "" {
+		apiKey = cred.APIKey
+	} else if s.secretStore != nil {
+		if secret, err := s.secretStore.Get(providerID); err == nil {
+			apiKey = secret
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("no hay una clave de API configurada para el proveedor %s", providerID)
+	}
+
+	model = strings.TrimSpace(model)
+	if model == "" {
+		model = GetOrchestratorModel(providerID)
+	}
+
+	return streamer.StreamChat(ctx, apiKey, model, messages, onChunk)
+}

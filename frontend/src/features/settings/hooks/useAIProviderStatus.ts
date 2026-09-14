@@ -7,7 +7,7 @@ import {
   ClearAIProviderAdminKey,
   GetAIProviderUsage,
   SendAIProviderTestMessage,
-} from '../../../../wailsjs/go/main/App';
+} from '../../../../wailsjs/go/app/App';
 import { domain } from '../../../../wailsjs/go/models';
 
 export type ProviderStatusMap = Record<string, domain.ProviderStatus>;
@@ -144,6 +144,7 @@ export function useAIProviderStatus() {
     statuses,
     loadingStatuses,
     statusError,
+    refreshStatuses,
     validatingProviderId,
     getStatus,
     validateAndSaveKey,

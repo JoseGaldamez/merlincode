@@ -68,4 +68,3 @@ type ProviderConfig struct {
 	OrchestratorModel string        `json:"orchestratorModel"`
 	Models            []ModelConfig `json:"models"`
 }
-

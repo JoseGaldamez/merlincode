@@ -25,3 +25,11 @@ type UsageFetcher interface {
 type MessageTester interface {
 	SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error)
 }
+
+// StreamChunk es un alias de compatibilidad hacia domain.StreamChunk.
+type StreamChunk = domain.StreamChunk
+
+// Streamer define el contrato para generar respuestas de chat en tiempo real mediante streaming (SSE).
+type Streamer interface {
+	StreamChat(ctx context.Context, apiKey string, model string, messages []domain.ChatMessage, onChunk func(chunk domain.StreamChunk) error) (*domain.ChatCompletionResult, error)
+}

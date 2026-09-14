@@ -47,6 +47,14 @@ var Client = &http.Client{
 	},
 }
 
+// StreamClient es el cliente HTTP seguro para streaming SSE prolongado.
+// No tiene un timeout fijo global en el cliente; el ciclo de vida se gobierna estrictamente
+// mediante el context.Context de cada petición (context.WithCancel / context.WithTimeout).
+var StreamClient = &http.Client{
+	Timeout:       0,
+	CheckRedirect: Client.CheckRedirect,
+}
+
 // DecodeJSONLimited deserializa JSON desde un io.Reader limitando el tamaño máximo
 // a maxBytes para evitar denegación de servicio por consumo de memoria.
 func DecodeJSONLimited(r io.Reader, v any, maxBytes int64) error {
