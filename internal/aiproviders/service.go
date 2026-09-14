@@ -40,10 +40,46 @@ func NewService() *Service {
 // NewServiceWithOptions permite inyectar una ruta y un mapa de validadores personalizados,
 // lo que facilita las pruebas unitarias sin depender de la red ni del sistema de archivos real.
 func NewServiceWithOptions(filePath string, validators map[string]Validator) *Service {
-	return &Service{
+	s := &Service{
 		credentials: loadCredentialsFromFile(filePath),
 		filePath:    filePath,
 		validators:  validators,
+	}
+	s.hydrateFromKeyring()
+	return s
+}
+
+// hydrateFromKeyring completa las claves reales de cada credencial leyendo el llavero nativo del
+// sistema operativo (Windows Credential Manager, macOS Keychain o Secret Service en Linux), que es
+// donde viven los secretos. El archivo JSON en disco solo guarda metadatos no sensibles.
+//
+// Si encuentra una clave en texto plano proveniente de una versión anterior (guardada directamente
+// en el JSON), la migra al llavero nativo y reescribe el archivo ya sin el secreto.
+func (s *Service) hydrateFromKeyring() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	migrated := false
+	for id, cred := range s.credentials {
+		if apiKey, ok := getKeyringSecret(id); ok {
+			cred.APIKey = apiKey
+		} else if cred.APIKey != "" {
+			_ = setKeyringSecret(id, cred.APIKey)
+			migrated = true
+		}
+
+		if adminKey, ok := getKeyringSecret(adminKeyringAccount(id)); ok {
+			cred.AdminAPIKey = adminKey
+		} else if cred.AdminAPIKey != "" {
+			_ = setKeyringSecret(adminKeyringAccount(id), cred.AdminAPIKey)
+			migrated = true
+		}
+
+		s.credentials[id] = cred
+	}
+
+	if migrated {
+		s.persistCredentials()
 	}
 }
 
@@ -58,9 +94,18 @@ func loadCredentialsFromFile(filePath string) map[string]domain.ProviderCredenti
 	return creds
 }
 
-// persistCredentials serializa las credenciales a disco (debe llamarse con el candado adquirido)
+// persistCredentials serializa los metadatos no sensibles a disco (debe llamarse con el candado
+// adquirido). Las claves reales nunca se escriben en este archivo: viven exclusivamente en el
+// llavero nativo del sistema operativo (ver hydrateFromKeyring y setKeyringSecret).
 func (s *Service) persistCredentials() {
-	data, err := json.MarshalIndent(s.credentials, "", "  ")
+	redacted := make(map[string]domain.ProviderCredential, len(s.credentials))
+	for id, cred := range s.credentials {
+		cred.APIKey = ""
+		cred.AdminAPIKey = ""
+		redacted[id] = cred
+	}
+
+	data, err := json.MarshalIndent(redacted, "", "  ")
 	if err == nil {
 		_ = os.WriteFile(s.filePath, data, 0644)
 	}
@@ -147,12 +192,17 @@ func (s *Service) ValidateAndSaveKey(ctx context.Context, providerID string, api
 		return result, nil
 	}
 
+	trimmedKey := strings.TrimSpace(apiKey)
+	if err := setKeyringSecret(providerID, trimmedKey); err != nil {
+		return domain.ProviderValidationResult{}, err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.credentials[providerID] = domain.ProviderCredential{
 		ProviderID:  providerID,
-		APIKey:      strings.TrimSpace(apiKey),
+		APIKey:      trimmedKey,
 		Verified:    true,
 		VerifiedAt:  time.Now().UTC().Format(time.RFC3339),
 		AccountInfo: result.AccountInfo,
@@ -163,11 +213,14 @@ func (s *Service) ValidateAndSaveKey(ctx context.Context, providerID string, api
 	return result, nil
 }
 
-// ClearKey elimina la credencial guardada de un proveedor
+// ClearKey elimina la credencial guardada de un proveedor, tanto del llavero nativo del sistema
+// operativo como de los metadatos en disco
 func (s *Service) ClearKey(providerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	deleteKeyringSecret(providerID)
+	deleteKeyringSecret(adminKeyringAccount(providerID))
 	delete(s.credentials, providerID)
 	s.persistCredentials()
 }
@@ -179,21 +232,29 @@ func (s *Service) SaveAdminKey(providerID string, adminKey string) error {
 		return domain.ErrAdminKeyNotSupported
 	}
 
+	trimmedAdminKey := strings.TrimSpace(adminKey)
+	if err := setKeyringSecret(adminKeyringAccount(providerID), trimmedAdminKey); err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	cred := s.credentials[providerID]
 	cred.ProviderID = providerID
-	cred.AdminAPIKey = strings.TrimSpace(adminKey)
+	cred.AdminAPIKey = trimmedAdminKey
 	s.credentials[providerID] = cred
 	s.persistCredentials()
 	return nil
 }
 
-// ClearAdminKey elimina la Admin API Key guardada de un proveedor, sin afectar su clave normal
+// ClearAdminKey elimina la Admin API Key guardada de un proveedor (del llavero nativo y de los
+// metadatos en disco), sin afectar su clave normal
 func (s *Service) ClearAdminKey(providerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	deleteKeyringSecret(adminKeyringAccount(providerID))
 
 	cred, ok := s.credentials[providerID]
 	if !ok {

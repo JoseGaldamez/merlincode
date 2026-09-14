@@ -484,7 +484,11 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                     await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
                     setDraftAdminKey('');
                     setAdminKeySaved(true);
-                    fetchUsage(settings.modelProvider);
+                    try {
+                      await fetchUsage(settings.modelProvider);
+                    } finally {
+                      setAdminKeySaved(false);
+                    }
                   }}
                   disabled={!draftAdminKey.trim()}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"

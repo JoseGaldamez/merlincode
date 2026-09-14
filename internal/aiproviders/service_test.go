@@ -6,8 +6,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"merlincode/internal/domain"
 )
+
+// TestMain reemplaza el llavero nativo del sistema operativo por uno en memoria durante toda la
+// suite, para que las pruebas sean deterministas y no dependan de (ni contaminen) el Credential
+// Manager/Keychain/Secret Service real de la máquina donde corren.
+func TestMain(m *testing.M) {
+	keyring.MockInit()
+	os.Exit(m.Run())
+}
 
 // fakeValidator simula la respuesta de un proveedor real sin tocar la red,
 // permitiendo probar el Service de forma determinista y aislada.
