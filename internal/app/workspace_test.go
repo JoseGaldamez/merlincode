@@ -28,8 +28,22 @@ func TestAppIntegrationWorkspaceSandboxing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetActiveProject falló: %v", err)
 	}
-	if proj == nil || proj.Path != tempDir {
-		t.Fatalf("Información de proyecto inesperada: %+v", proj)
+	if proj == nil {
+		t.Fatal("Proyecto inesperadamente nil")
+	}
+
+	expectedInfo, err := os.Stat(tempDir)
+	if err != nil {
+		t.Fatalf("No se pudo inspeccionar tempDir: %v", err)
+	}
+
+	actualInfo, err := os.Stat(proj.Path)
+	if err != nil {
+		t.Fatalf("No se pudo inspeccionar proj.Path: %v", err)
+	}
+
+	if !os.SameFile(expectedInfo, actualInfo) {
+		t.Fatalf("Ruta de proyecto inesperada: esperado=%q obtenido=%q", tempDir, proj.Path)
 	}
 
 	// Escritura permitida dentro del proyecto

@@ -47,7 +47,15 @@ func TestPrivateWindowsACL(t *testing.T) {
 			t.Fatal("DACL inheritance not protected")
 		}
 		sddl := sd.String()
-		if strings.Count(sddl, "(A;") != 2 || !strings.Contains(sddl, user.User.Sid.String()) || !strings.Contains(sddl, ";;;SY)") || strings.Contains(sddl, ";;;WD)") {
+
+		userSID := user.User.Sid.String()
+		hasCurrentUser := strings.Contains(sddl, ";;;"+userSID+")") ||
+			strings.Contains(sddl, ";;;LA)")
+
+		if strings.Count(sddl, "(A;") != 2 ||
+			!hasCurrentUser ||
+			!strings.Contains(sddl, ";;;SY)") ||
+			strings.Contains(sddl, ";;;WD)") {
 			t.Fatalf("unexpected DACL: %s", sddl)
 		}
 	}
