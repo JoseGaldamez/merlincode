@@ -202,6 +202,13 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
 
   return (
     <div className="flex flex-col gap-7 max-w-3xl">
+      {settings.modelProvider === 'google' && (
+        <p className="text-xs text-content-dim leading-relaxed">
+          Si usaste Google en una versión antigua, revoca la clave anterior en Google AI Studio
+          y configura una nueva, especialmente si hubo errores de red o compartiste registros.
+          Eliminarla aquí solo borra la copia local.
+        </p>
+      )}
       {/* Sección 1: Selección de Proveedores */}
       <div>
         <div className="mb-3">

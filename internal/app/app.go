@@ -25,6 +25,7 @@ type App struct {
 	workspaceService  *workspace.Service
 	aiProviderService *ai.Service
 	sessionService    *session.Service
+	streamsWG         sync.WaitGroup
 	activeStreamsMu   sync.Mutex
 	activeStreams     map[string]context.CancelFunc
 }
@@ -37,10 +38,10 @@ func NewApp() *App {
 		var errSvc error
 		sessionSvc, errSvc = session.NewService(dbPath)
 		if errSvc != nil {
-			log.Printf("[App] Error inicializando session.Service en %s: %v", dbPath, errSvc)
+			log.Print("[App] No se pudo inicializar la base de datos local")
 		}
 	} else {
-		log.Printf("[App] Error obteniendo ruta de base de datos merlin.db: %v", err)
+		log.Print("[App] No se pudo obtener el directorio de datos local")
 	}
 
 	return &App{
@@ -64,8 +65,14 @@ func (a *App) Startup(ctx context.Context) {
 
 // BeforeClose se invoca antes de cerrar para cancelar peticiones pendientes y guardar el tamaño final de la ventana
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	a.activeStreamsMu.Lock()
 	if a.cancelFunc != nil {
 		a.cancelFunc()
+	}
+	a.activeStreamsMu.Unlock()
+	a.streamsWG.Wait()
+	if a.workspaceService != nil {
+		_ = a.workspaceService.Close()
 	}
 	if a.sessionService != nil {
 		_ = a.sessionService.Close()

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { marked } from 'marked';
+import { renderSafeMarkdown } from '../safeMarkdown';
 import { CodeSnippetView } from './CodeSnippetView';
 
 interface ContentBlock {
@@ -59,11 +59,7 @@ export const FormattedMessageContent: React.FC<{
           );
         }
 
-        const html = marked.parse(block.content, {
-          async: false,
-          breaks: true,
-          gfm: true,
-        }) as string;
+        const html = renderSafeMarkdown(block.content);
 
         return (
           <div

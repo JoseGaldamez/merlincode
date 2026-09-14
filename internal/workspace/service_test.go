@@ -13,6 +13,7 @@ import (
 
 func TestWorkspaceServiceBasicsAndSandboxing(t *testing.T) {
 	svc := NewService()
+	defer svc.Close()
 
 	// 1. Operar sin proyecto activo debe retornar ErrNoActiveProject
 	if err := svc.WriteFile("test.txt", "contenido"); !errors.Is(err, domain.ErrNoActiveProject) {
@@ -37,8 +38,22 @@ func TestWorkspaceServiceBasicsAndSandboxing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetActive falló: %v", err)
 	}
-	if proj == nil || proj.Path != tempDir {
-		t.Fatalf("Metadatos de proyecto inesperados: %+v", proj)
+	if proj == nil {
+		t.Fatal("Proyecto inesperadamente nil")
+	}
+
+	expectedInfo, err := os.Stat(tempDir)
+	if err != nil {
+		t.Fatalf("No se pudo inspeccionar tempDir: %v", err)
+	}
+
+	actualInfo, err := os.Stat(proj.Path)
+	if err != nil {
+		t.Fatalf("No se pudo inspeccionar proj.Path: %v", err)
+	}
+
+	if !os.SameFile(expectedInfo, actualInfo) {
+		t.Fatalf("Ruta de proyecto inesperada: esperado=%q obtenido=%q", tempDir, proj.Path)
 	}
 
 	// 3. Escritura y lectura válida dentro del proyecto
@@ -91,6 +106,7 @@ func TestWorkspaceConcurrency(t *testing.T) {
 	})
 
 	svc := NewService()
+	defer svc.Close()
 	_, _ = svc.SetActive(tempDir)
 
 	var wg sync.WaitGroup

@@ -322,3 +322,13 @@ Para conocer los principios de privacidad local-first, términos de uso del soft
 ## ⚖️ Licencia
 
 Este proyecto está distribuido bajo la licencia **MIT**, la misma licencia con la que nació **OpenCode**. Consulta el archivo [LICENSE](LICENSE) para obtener más información.
+
+## Actualización de credenciales antiguas
+
+Si utilizaste Google con una versión anterior que enviaba la API key en la URL,
+revoca esa clave en Google AI Studio y crea otra, especialmente si hubo errores de red
+o compartiste registros de diagnóstico. Eliminar la copia local no revoca la clave
+en Google. Introduce la nueva clave en Ajustes → Proveedores de IA.
+
+La migración de credenciales JSON heredadas se mantiene hasta el 31 de marzo de 2027.
+Solo elimina las claves del JSON después de confirmar su almacenamiento en el llavero.

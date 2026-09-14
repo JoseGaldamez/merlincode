@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -99,7 +98,6 @@ func (Client) StreamChat(
 	}
 
 	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/" + url.PathEscape(model) + ":streamGenerateContent?alt=sse"
-	log.Printf("[Google AI] Conectando a %s con modelo '%s'...", endpoint, model)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
@@ -111,19 +109,15 @@ func (Client) StreamChat(
 
 	resp, err := transport.StreamClient.Do(req)
 	if err != nil {
-		log.Printf("[Google AI] Error de conexión/transporte: %v", err)
 		return nil, errors.New(transport.SanitizeTransportError(err, "Google AI"))
 	}
 	defer transport.CloseHTTPResponse(resp)
-
-	log.Printf("[Google AI] Respuesta HTTP: %d %s", resp.StatusCode, resp.Status)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp googleStreamResponse
 		_ = transport.DecodeJSONLimited(resp.Body, &errResp, transport.DefaultMaxResponseBytes)
 		if errResp.Error != nil && errResp.Error.Message != "" {
 			errLow := strings.ToLower(errResp.Error.Message)
-			log.Printf("[Google AI] Error devuelto por API (%d): %s", resp.StatusCode, errResp.Error.Message)
 			if strings.Contains(errLow, "quota") || strings.Contains(errLow, "resource_exhausted") {
 				return nil, errors.New("Google Gemini reporta que excediste la cuota de peticiones (Resource Exhausted). Intenta en unos minutos.")
 			}
@@ -134,7 +128,7 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SafeProviderHTTPError("Google AI", resp.StatusCode))
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(transport.LimitedStreamReader(resp.Body))
 	// Permitir líneas de hasta 1 MiB para chunks grandes
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
@@ -196,8 +190,11 @@ func (Client) StreamChat(
 		}
 	}
 
-	if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		return nil, fmt.Errorf("error leyendo stream de Gemini: %w", err)
+	if err := scanner.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
 	return &domain.ChatCompletionResult{

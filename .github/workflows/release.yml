@@ -36,6 +36,19 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Test and build frontend
+        working-directory: frontend
+        run: |
+          npm test
+          npm run build
+          npm audit --audit-level=low
+
+      - name: Vet source
+        run: go vet ./internal/...
+
+      - name: Check Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./internal/...
+
       - name: Verify Source
         run: go test -race -count=1 ./...
 

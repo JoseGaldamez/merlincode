@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -26,7 +25,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 
 	req.MessageID = strings.TrimSpace(req.MessageID)
 	req.SessionID = strings.TrimSpace(req.SessionID)
-	req.ProviderID = strings.TrimSpace(req.ProviderID)
+	req.ProviderID = ai.NormalizeProviderID(req.ProviderID)
 	req.Prompt = strings.TrimSpace(req.Prompt)
 	req.ModelID = strings.TrimSpace(req.ModelID)
 
@@ -49,6 +48,17 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 		})
 	}
 
+	if len(req.MessageID) > 128 || len(req.SessionID) > 128 || len(req.UserMessageID) > 128 {
+		return domain.ErrInvalidChat
+	}
+	if err := ai.ValidateChatRequest(req.ProviderID, req.ModelID, messages); err != nil {
+		return err
+	}
+	streamCtx, finish, err := a.beginChatStream(req.MessageID)
+	if err != nil {
+		return err
+	}
+
 	// Persistir mensaje del usuario inmediatamente si hay sesión activa y servicio disponible
 	if a.sessionService != nil && req.SessionID != "" && req.Prompt != "" {
 		userMsgID := strings.TrimSpace(req.UserMessageID)
@@ -63,17 +73,11 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 			Status:    "done",
 			CreatedAt: time.Now().UTC(),
 		}
-		if err := a.sessionService.SaveMessage(context.Background(), userRecord); err != nil {
-			log.Printf("[ChatStream] Error guardando mensaje de usuario en SQLite: %v", err)
+		if err := a.sessionService.SaveMessage(streamCtx, userRecord); err != nil {
+			finish()
+			return errors.New("no se pudo guardar el mensaje en el historial local")
 		}
 	}
-
-	streamCtx, cancel := context.WithCancel(a.ctx)
-	a.activeStreamsMu.Lock()
-	a.activeStreams[req.MessageID] = cancel
-	a.activeStreamsMu.Unlock()
-
-	log.Printf("[ChatStream] Iniciando petición (messageID=%s, provider=%s, model=%s)", req.MessageID, req.ProviderID, req.ModelID)
 
 	// 1. Emitir evento de estado inicial
 	runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
@@ -87,11 +91,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 
 	// 2. Ejecutar streaming en una goroutine independiente para no bloquear el WebView / IPC
 	go func() {
-		defer func() {
-			a.activeStreamsMu.Lock()
-			delete(a.activeStreams, req.MessageID)
-			a.activeStreamsMu.Unlock()
-		}()
+		defer finish()
 
 		streamStartTime := time.Now()
 		var fullContent strings.Builder
@@ -125,8 +125,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 
 		if err != nil {
 			elapsedSec := max(1, int(time.Since(streamStartTime).Seconds()))
-			if errors.Is(err, context.Canceled) || streamCtx.Err() != nil {
-				log.Printf("[ChatStream] Stream cancelado por usuario (messageID=%s)", req.MessageID)
+			if errors.Is(err, context.Canceled) {
 				runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
 					SessionID:  req.SessionID,
 					MessageID:  req.MessageID,
@@ -159,7 +158,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 				return
 			}
 
-			log.Printf("[ChatStream] Error durante stream (messageID=%s): %v", req.MessageID, err)
+			err = sanitizeAIProviderError(err)
 			runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
 				SessionID:  req.SessionID,
 				MessageID:  req.MessageID,
@@ -193,8 +192,6 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 		}
 
 		elapsedSec := max(1, int(time.Since(streamStartTime).Seconds()))
-		log.Printf("[ChatStream] Stream completado con éxito (messageID=%s, model=%s, promptTokens=%d, compTokens=%d, duration=%ds)",
-			req.MessageID, result.Model, result.TokensPrompt, result.TokensCompletion, elapsedSec)
 
 		// Guardar respuesta del asistente en SQLite
 		if a.sessionService != nil && req.SessionID != "" {
@@ -212,9 +209,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 				Status:           "done",
 				CreatedAt:        time.Now().UTC(),
 			}
-			if err := a.sessionService.SaveMessage(context.Background(), asstRecord); err != nil {
-				log.Printf("[ChatStream] Error guardando mensaje de asistente en SQLite: %v", err)
-			}
+			_ = a.sessionService.SaveMessage(context.Background(), asstRecord)
 		}
 
 		// 3. Emitir evento de finalización exitosa
@@ -237,17 +232,41 @@ func (a *App) CancelChatStream(messageID string) bool {
 	messageID = strings.TrimSpace(messageID)
 	a.activeStreamsMu.Lock()
 	cancel, found := a.activeStreams[messageID]
-	if found {
-		delete(a.activeStreams, messageID)
-	}
+
 	a.activeStreamsMu.Unlock()
 
 	if found && cancel != nil {
-		log.Printf("[ChatStream] Cancelando stream activo (messageID=%s)...", messageID)
 		cancel()
 		return true
 	}
 
-	log.Printf("[ChatStream] CancelChatStream: messageID=%s no estaba activo o ya finalizó", messageID)
 	return false
+}
+
+// beginChatStream reserves a single slot until completion, including cancellation cleanup.
+func (a *App) beginChatStream(messageID string) (context.Context, func(), error) {
+	a.activeStreamsMu.Lock()
+	defer a.activeStreamsMu.Unlock()
+	if a.ctx == nil {
+		return nil, nil, domain.ErrRuntimeNotInitialized
+	}
+	if a.ctx.Err() != nil {
+		return nil, nil, context.Canceled
+	}
+	if len(a.activeStreams) != 0 {
+		return nil, nil, domain.ErrChatBusy
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, ai.ChatTimeout)
+	if a.activeStreams == nil {
+		a.activeStreams = make(map[string]context.CancelFunc)
+	}
+	a.activeStreams[messageID] = cancel
+	a.streamsWG.Add(1)
+	return ctx, func() {
+		cancel()
+		a.activeStreamsMu.Lock()
+		delete(a.activeStreams, messageID)
+		a.activeStreamsMu.Unlock()
+		a.streamsWG.Done()
+	}, nil
 }

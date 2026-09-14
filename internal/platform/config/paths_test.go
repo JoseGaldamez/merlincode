@@ -7,6 +7,9 @@ import (
 )
 
 func TestGetConfigFilePath(t *testing.T) {
+	dirBase := t.TempDir()
+	t.Setenv("APPDATA", dirBase)
+	t.Setenv("XDG_CONFIG_HOME", dirBase)
 	filePath, err := GetConfigFilePath("test_file.json")
 	if err != nil {
 		t.Fatalf("GetConfigFilePath falló: %v", err)

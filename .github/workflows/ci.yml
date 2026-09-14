@@ -18,6 +18,7 @@ jobs:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,12 +30,19 @@ jobs:
           cache: true
 
       - name: Run backend unit tests
-        run: go test -count=1 ./internal/...
+        run: go test -race -count=1 ./internal/...
+
+      - name: Vet backend
+        run: go vet ./internal/...
+
+      - name: Check Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./internal/...
 
   frontend-tests:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,16 +51,75 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@10.9.2
 
-      - name: Install dependencies (npm ci)
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Run frontend unit tests
         working-directory: frontend
         run: npm test
+
+      - name: Typecheck and build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=low
+
+  windows-build:
+    name: Windows clean build and security checks
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.6'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@10.9.2
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Windows tests
+        run: go test -count=1 ./...
+
+      - name: Vet Go code
+        run: go vet ./...
+
+      - name: Check Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+      - name: Build Wails application
+        run: wails build -clean
+
+      - name: Verify Wails bindings are committed
+        run: git diff --exit-code -- frontend/wailsjs

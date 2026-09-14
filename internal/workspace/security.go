@@ -20,11 +20,16 @@ func VerifyFolderWritePermissions(dirPath string) error {
 	}
 
 	// Probar creando y eliminando un archivo temporal para verificar permisos reales de escritura
-	testFile := filepath.Join(dirPath, fmt.Sprintf(".merlin_perm_%d.tmp", os.Getpid()))
-	if err := os.WriteFile(testFile, []byte("ok"), 0644); err != nil {
+	testFile, err := os.CreateTemp(dirPath, ".merlin_perm_*.tmp")
+	if err != nil {
 		return fmt.Errorf("%w: %v", domain.ErrWritePermissionDenied, err)
 	}
-	_ = os.Remove(testFile)
+	name := testFile.Name()
+	closeErr := testFile.Close()
+	removeErr := os.Remove(name)
+	if closeErr != nil || removeErr != nil {
+		return domain.ErrWritePermissionDenied
+	}
 	return nil
 }
 
@@ -62,5 +67,23 @@ func ValidatePathInProject(activeDir string, relOrAbsPath string) (string, error
 		return "", fmt.Errorf("%w (%s)", domain.ErrAccessDenied, activeDir)
 	}
 
+	// Reject links/junctions and special files, including existing parents of new files.
+	current := cleanProject
+	for _, component := range strings.Split(rel, string(filepath.Separator)) {
+		if component == "." {
+			continue
+		}
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil {
+			return "", domain.ErrAccessDenied
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return "", domain.ErrAccessDenied
+		}
+	}
 	return targetAbs, nil
 }

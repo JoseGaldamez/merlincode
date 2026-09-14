@@ -122,3 +122,33 @@ func SafeProviderHTTPError(providerName string, statusCode int) string {
 		return fmt.Sprintf("%s respondió con estado inesperado (%d).", providerName, statusCode)
 	}
 }
+
+// LimitedStreamReader caps the entire SSE body, including ignored events and heartbeats.
+func LimitedStreamReader(r io.Reader) io.Reader {
+	return &limitedStreamReader{reader: r, remaining: DefaultMaxResponseBytes}
+}
+
+type limitedStreamReader struct {
+	reader    io.Reader
+	remaining int
+}
+
+func (r *limitedStreamReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if r.remaining == 0 {
+		var probe [1]byte
+		n, err := r.reader.Read(probe[:])
+		if n != 0 {
+			return 0, ErrResponseTooLarge
+		}
+		return 0, err
+	}
+	if len(p) > r.remaining {
+		p = p[:r.remaining]
+	}
+	n, err := r.reader.Read(p)
+	r.remaining -= n
+	return n, err
+}

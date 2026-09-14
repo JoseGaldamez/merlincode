@@ -125,12 +125,11 @@ export function loadAndMigrateSettings(storage: SettingsStorage): SettingsState 
     const parsed: unknown = JSON.parse(saved);
     const { settings } = parseAndSanitizeSettings(parsed);
     storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(serializeAllowedSettings(settings)));
-    if (sourceKey === LEGACY_SETTINGS_STORAGE_KEY) {
-      storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
-    }
+    storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
     return settings;
   } catch {
     try {
+      storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
       storage.removeItem(sourceKey);
     } catch {}
     return { ...defaultSettings };
