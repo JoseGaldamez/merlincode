@@ -3,10 +3,10 @@ package window
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/platform/config"
 )
 
 // Service gestiona la configuración y persistencia de las dimensiones de la ventana y paneles
@@ -29,13 +29,11 @@ func GetDefaultState() domain.WindowState {
 
 // resolveConfigFilePath obtiene la ruta absoluta hacia %APPDATA%/merlincode/window.json
 func resolveConfigFilePath() string {
-	configDir, err := os.UserConfigDir()
+	filePath, err := config.GetConfigFilePath("window.json")
 	if err != nil {
-		configDir = "."
+		return "window.json"
 	}
-	appDir := filepath.Join(configDir, "merlincode")
-	_ = os.MkdirAll(appDir, 0755)
-	return filepath.Join(appDir, "window.json")
+	return filePath
 }
 
 // NewService crea una nueva instancia cargando el estado persistido o inicializando con defaults

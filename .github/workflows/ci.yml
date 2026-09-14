@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, agents-responses-streaming ]
+  pull_request:
+    branches: [ main, agents-responses-streaming ]
+
+jobs:
+  go-check:
+    name: Go Tests & Security Scan
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.6'
+
+      - name: Run Go Vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run
+
+      - name: Run Go Tests
+        run: go test -race -v -count=1 ./...
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  frontend-check:
+    name: Frontend Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Pin npm
+        run: npm install --global npm@10.9.2
+
+      - name: Install dependencies (npm ci)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck and Build Frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Frontend Tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Audit Frontend Dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
+  wails-build:
+    name: Wails Desktop Build
+    needs: [ go-check, frontend-check ]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.6'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Pin npm
+        run: npm install --global npm@10.9.2
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Desktop Application
+        run: wails build -clean
+
+      - name: Verify Deterministic Wails Bindings
+        run: git diff --exit-code -- frontend/wailsjs

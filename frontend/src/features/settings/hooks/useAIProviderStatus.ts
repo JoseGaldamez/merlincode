@@ -7,7 +7,7 @@ import {
   ClearAIProviderAdminKey,
   GetAIProviderUsage,
   SendAIProviderTestMessage,
-} from '../../../../wailsjs/go/main/App';
+} from '../../../../wailsjs/go/app/App';
 import { domain } from '../../../../wailsjs/go/models';
 
 export type ProviderStatusMap = Record<string, domain.ProviderStatus>;
@@ -21,12 +21,14 @@ export type ProviderUsageMap = Record<string, domain.ProviderUsageResult>;
 export function useAIProviderStatus() {
   const [statuses, setStatuses] = useState<ProviderStatusMap>({});
   const [loadingStatuses, setLoadingStatuses] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [validatingProviderId, setValidatingProviderId] = useState<string | null>(null);
   const [usages, setUsages] = useState<ProviderUsageMap>({});
   const [loadingUsageProviderId, setLoadingUsageProviderId] = useState<string | null>(null);
   const [sendingTestMessageProviderId, setSendingTestMessageProviderId] = useState<string | null>(null);
 
   const refreshStatuses = useCallback(async () => {
+    setStatusError(null);
     try {
       const list = await ListAIProviderStatuses();
       const map: ProviderStatusMap = {};
@@ -34,8 +36,12 @@ export function useAIProviderStatus() {
         map[status.providerId] = status;
       }
       setStatuses(map);
-    } catch {
-      // Si el backend aún no está disponible (p.ej. en dev sin Wails), no rompemos la UI
+    } catch (error) {
+      setStatusError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo consultar el almacén seguro de credenciales.'
+      );
     } finally {
       setLoadingStatuses(false);
     }
@@ -63,8 +69,11 @@ export function useAIProviderStatus() {
 
   const clearKey = useCallback(
     async (providerId: string) => {
-      await ClearAIProviderKey(providerId);
-      await refreshStatuses();
+      try {
+        await ClearAIProviderKey(providerId);
+      } finally {
+        await refreshStatuses();
+      }
     },
     [refreshStatuses]
   );
@@ -83,16 +92,22 @@ export function useAIProviderStatus() {
 
   const saveAdminKey = useCallback(
     async (providerId: string, adminKey: string) => {
-      await SaveAIProviderAdminKey(providerId, adminKey);
-      await refreshStatuses();
+      try {
+        await SaveAIProviderAdminKey(providerId, adminKey);
+      } finally {
+        await refreshStatuses();
+      }
     },
     [refreshStatuses]
   );
 
   const clearAdminKey = useCallback(
     async (providerId: string) => {
-      await ClearAIProviderAdminKey(providerId);
-      await refreshStatuses();
+      try {
+        await ClearAIProviderAdminKey(providerId);
+      } finally {
+        await refreshStatuses();
+      }
     },
     [refreshStatuses]
   );
@@ -128,6 +143,8 @@ export function useAIProviderStatus() {
   return {
     statuses,
     loadingStatuses,
+    statusError,
+    refreshStatuses,
     validatingProviderId,
     getStatus,
     validateAndSaveKey,

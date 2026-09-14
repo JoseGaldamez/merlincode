@@ -9,10 +9,10 @@
 
   <p>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-teal.svg?style=for-the-badge" alt="License: MIT" /></a>
-    <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" /></a>
-    <a href="https://wails.io"><img src="https://img.shields.io/badge/Wails-v2-DF0000?style=for-the-badge&logo=wails&logoColor=white" alt="Wails Version" /></a>
+    <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26.6-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" /></a>
+    <a href="https://wails.io"><img src="https://img.shields.io/badge/Wails-v2.15.0-DF0000?style=for-the-badge&logo=wails&logoColor=white" alt="Wails Version" /></a>
     <a href="https://react.dev"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18" /></a>
-    <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/Vite-3-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" /></a>
+    <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" /></a>
     <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
   </p>
 
@@ -118,7 +118,7 @@ Node.js es necesario para compilar el frontend basado en React, TypeScript y Vit
 
 1. Abre tu terminal y ejecuta el siguiente comando:
    ```bash
-   go install github.com/wailsapp/wails/v2/cmd/wails@latest
+   go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
    ```
 
 2. **Asegúrate de que la ruta de binarios de Go esté en tu variable de entorno PATH:**
@@ -146,7 +146,7 @@ cd merlincode
 ### 2. Instalar las dependencias del frontend
 ```bash
 cd frontend
-npm install
+npm ci
 cd ..
 ```
 
@@ -187,7 +187,8 @@ Merlin Code se conecta a cuatro proveedores de IA (Anthropic, OpenAI, Google y D
   - OpenAI: [platform.openai.com](https://platform.openai.com/)
   - Google AI (Gemini): [aistudio.google.com](https://aistudio.google.com/)
   - DeepSeek: [platform.deepseek.com](https://platform.deepseek.com/)
-- **Cómo se guarda:** al validar una clave desde la app, Merlin Code la verifica en vivo contra el proveedor y, solo si es válida, la guarda en el **llavero nativo y cifrado del sistema operativo** (Credential Manager en Windows, Keychain en macOS, Secret Service/libsecret en Linux) en vez de en texto plano. El archivo `%APPDATA%/merlincode/ai_providers.json` solo almacena metadatos no sensibles (estado de verificación, modelos disponibles, versión enmascarada de la clave); nunca la clave completa. La clave tampoco se envía a servidores de Merlin Code ni a terceros distintos del proveedor correspondiente.
+- **Cómo se guarda:** al validar una clave desde la app, Merlin Code la verifica en vivo contra el proveedor y, solo si es válida, la guarda en el **llavero nativo y cifrado del sistema operativo** (Credential Manager en Windows, Keychain en macOS, Secret Service/libsecret en Linux) en vez de en texto plano. El archivo `%APPDATA%/merlincode/ai_providers.json` solo almacena ID del proveedor, estado y fecha de verificación y modelos disponibles; nunca claves, claves enmascaradas, saldos ni costos. La clave tampoco se envía a servidores de Merlin Code ni a terceros distintos del proveedor correspondiente.
+- **Migración de versiones anteriores:** los archivos heredados que contenían claves se migran al llavero únicamente después de verificar la escritura y se reescriben de forma atómica. Esta compatibilidad se mantendrá hasta el **31 de marzo de 2027**. Si usaste Google AI con una versión anterior y recibiste errores de red, rota la clave desde Google AI Studio: versiones antiguas pudieron incluirla en URLs.
 - **Admin Key (opcional):** algunos proveedores (por ejemplo Anthropic) requieren una clave adicional de administrador, a nivel de organización, únicamente para poder consultar el consumo y costo real de la cuenta. Es completamente opcional: sin ella, la app sigue funcionando con la clave normal y muestra una estimación local del consumo en lugar del dato exacto de facturación.
 - **Probar Conexión:** la sección de prueba de mensaje en Configuración consume tokens reales de tu cuenta (usando tu clave estándar, nunca la Admin Key), por lo que también genera un costo mínimo asociado a tu plan con el proveedor.
 

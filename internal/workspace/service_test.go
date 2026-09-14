@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"merlincode/internal/domain"
 )
@@ -25,7 +26,11 @@ func TestWorkspaceServiceBasicsAndSandboxing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error creando tempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("no se pudo limpiar el directorio temporal: %v", err)
+		}
+	})
 
 	// 2. Definir proyecto activo
 	proj, err := svc.SetActive(tempDir)
@@ -76,7 +81,14 @@ func TestWorkspaceConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error creando tempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() {
+		for i := 0; i < 5; i++ {
+			if err := os.RemoveAll(tempDir); err == nil {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
 
 	svc := NewService()
 	_, _ = svc.SetActive(tempDir)
