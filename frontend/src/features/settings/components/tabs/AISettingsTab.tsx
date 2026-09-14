@@ -16,7 +16,6 @@ import {
   IconCheck,
   IconClose,
   IconRefresh,
-  IconSearch,
 } from '../../../../components/Icons';
 
 interface AISettingsTabProps {
@@ -53,7 +52,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
   const [showApiKey, setShowApiKey] = useState(false);
   const [draftKey, setDraftKey] = useState('');
   const [validationResult, setValidationResult] = useState<{ valid: boolean; message: string } | null>(null);
-  const [modelFilter, setModelFilter] = useState('');
   const [keyTab, setKeyTab] = useState<'api' | 'admin'>('api');
   const [showAdminKey, setShowAdminKey] = useState(false);
   const [draftAdminKey, setDraftAdminKey] = useState('');
@@ -92,7 +90,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     setDraftKey('');
     setValidationResult(null);
     setShowApiKey(false);
-    setModelFilter('');
     setKeyTab('api');
     setDraftAdminKey('');
     setShowAdminKey(false);
@@ -325,95 +322,99 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             </div>
 
             <div className="md:col-span-7 flex flex-col gap-2">
-              {currentStatus.configured && (
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {currentStatus.verified ? (
-                      <IconCheck size={14} className="text-emerald-400 shrink-0" />
-                    ) : (
-                      <IconClose size={14} className="text-amber-400 shrink-0" />
-                    )}
-                    <span className="text-xs font-mono text-content-headline truncate">
-                      {currentStatus.maskedKey}
-                    </span>
+              {currentStatus.configured ? (
+                <>
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {currentStatus.verified ? (
+                        <IconCheck size={14} className="text-emerald-400 shrink-0" />
+                      ) : (
+                        <IconClose size={14} className="text-amber-400 shrink-0" />
+                      )}
+                      <span className="text-xs font-mono text-content-headline truncate">
+                        {currentStatus.maskedKey}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearKey}
+                      className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors cursor-pointer"
+                    >
+                      Eliminar
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleClearKey}
-                    className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              )}
-              {currentStatus.accountInfo && (
-                <p className="text-[11px] text-content-dim leading-relaxed">
-                  {currentStatus.accountInfo}
-                </p>
-              )}
-
-              <div className="relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
-                  value={draftKey}
-                  onChange={(e) => {
-                    setDraftKey(e.target.value);
-                    setValidationResult(null);
-                  }}
-                  placeholder={currentStatus.configured ? 'Ingresa una nueva clave para reemplazarla' : currentProvider.keyPlaceholder}
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
-                  title={showApiKey ? 'Ocultar clave' : 'Mostrar clave'}
-                >
-                  {showApiKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleValidateAndSave}
-                  disabled={!draftKey.trim() || isValidating}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  {isValidating && <IconRefresh size={12} className="animate-spin" />}
-                  {isValidating ? 'Verificando conexión...' : 'Verificar y guardar'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      BrowserOpenURL(currentProvider.keyHelpUrl);
-                    } catch {
-                      window.open(currentProvider.keyHelpUrl, '_blank', 'noopener,noreferrer');
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs text-accent-primary hover:underline transition-colors cursor-pointer"
-                >
-                  <span>Obtener clave en {currentProvider.name} Console</span>
-                  <IconExternalLink size={12} />
-                </button>
-              </div>
-
-              {validationResult && (
-                <div
-                  className={`flex items-start gap-1.5 text-xs mt-0.5 ${
-                    validationResult.valid ? 'text-emerald-400' : 'text-red-400'
-                  }`}
-                >
-                  {validationResult.valid ? (
-                    <IconCheck size={13} className="shrink-0 mt-0.5" />
-                  ) : (
-                    <IconClose size={13} className="shrink-0 mt-0.5" />
+                  {currentStatus.accountInfo && (
+                    <p className="text-[11px] text-content-dim leading-relaxed">
+                      {currentStatus.accountInfo}
+                    </p>
                   )}
-                  <span>{validationResult.message}</span>
-                </div>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
+                      value={draftKey}
+                      onChange={(e) => {
+                        setDraftKey(e.target.value);
+                        setValidationResult(null);
+                      }}
+                      placeholder={currentProvider.keyPlaceholder}
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
+                      title={showApiKey ? 'Ocultar clave' : 'Mostrar clave'}
+                    >
+                      {showApiKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleValidateAndSave}
+                      disabled={!draftKey.trim() || isValidating}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    >
+                      {isValidating && <IconRefresh size={12} className="animate-spin" />}
+                      {isValidating ? 'Verificando conexión...' : 'Verificar y guardar'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          BrowserOpenURL(currentProvider.keyHelpUrl);
+                        } catch {
+                          window.open(currentProvider.keyHelpUrl, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-accent-primary hover:underline transition-colors cursor-pointer"
+                    >
+                      <span>Obtener clave en {currentProvider.name} Console</span>
+                      <IconExternalLink size={12} />
+                    </button>
+                  </div>
+
+                  {validationResult && (
+                    <div
+                      className={`flex items-start gap-1.5 text-xs mt-0.5 ${
+                        validationResult.valid ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {validationResult.valid ? (
+                        <IconCheck size={13} className="shrink-0 mt-0.5" />
+                      ) : (
+                        <IconClose size={13} className="shrink-0 mt-0.5" />
+                      )}
+                      <span>{validationResult.message}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -433,7 +434,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             </div>
 
             <div className="md:col-span-7 flex flex-col gap-2">
-              {currentStatus.hasAdminKey && (
+              {currentStatus.hasAdminKey ? (
                 <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
                   <div className="flex items-center gap-2 min-w-0">
                     <IconShield size={14} className="text-accent-primary/90 shrink-0" />
@@ -447,153 +448,69 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                       await clearAdminKey(settings.modelProvider);
                       setAdminKeySaved(false);
                     }}
-                    className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors"
+                    className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors cursor-pointer"
                   >
                     Eliminar
                   </button>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div className="relative">
+                    <input
+                      type={showAdminKey ? 'text' : 'password'}
+                      className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
+                      value={draftAdminKey}
+                      onChange={(e) => {
+                        setDraftAdminKey(e.target.value);
+                        setAdminKeySaved(false);
+                      }}
+                      placeholder="sk-ant-admin..."
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminKey(!showAdminKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
+                      title={showAdminKey ? 'Ocultar clave' : 'Mostrar clave'}
+                    >
+                      {showAdminKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+                    </button>
+                  </div>
 
-              <div className="relative">
-                <input
-                  type={showAdminKey ? 'text' : 'password'}
-                  className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
-                  value={draftAdminKey}
-                  onChange={(e) => {
-                    setDraftAdminKey(e.target.value);
-                    setAdminKeySaved(false);
-                  }}
-                  placeholder={currentStatus.hasAdminKey ? 'Ingresa una nueva Admin Key para reemplazarla' : 'sk-ant-admin...'}
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowAdminKey(!showAdminKey)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-dim hover:text-content-headline p-1 rounded transition-colors"
-                  title={showAdminKey ? 'Ocultar clave' : 'Mostrar clave'}
-                >
-                  {showAdminKey ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                </button>
-              </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!draftAdminKey.trim()) return;
+                        await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
+                        setDraftAdminKey('');
+                        setAdminKeySaved(true);
+                        try {
+                          await fetchUsage(settings.modelProvider);
+                        } finally {
+                          setAdminKeySaved(false);
+                        }
+                      }}
+                      disabled={!draftAdminKey.trim()}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    >
+                      Guardar Admin Key
+                    </button>
+                  </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!draftAdminKey.trim()) return;
-                    await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
-                    setDraftAdminKey('');
-                    setAdminKeySaved(true);
-                    try {
-                      await fetchUsage(settings.modelProvider);
-                    } finally {
-                      setAdminKeySaved(false);
-                    }
-                  }}
-                  disabled={!draftAdminKey.trim()}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  Guardar Admin Key
-                </button>
-              </div>
-
-              {adminKeySaved && (
-                <div className="flex items-start gap-1.5 text-xs mt-0.5 text-emerald-400">
-                  <IconCheck size={13} className="shrink-0 mt-0.5" />
-                  <span>Admin Key guardada. Consultando consumo real...</span>
-                </div>
+                  {adminKeySaved && (
+                    <div className="flex items-start gap-1.5 text-xs mt-0.5 text-emerald-400">
+                      <IconCheck size={13} className="shrink-0 mt-0.5" />
+                      <span>Admin Key guardada. Consultando consumo real...</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
         )}
       </div>
-
-      {/* Sección 2.5: Modelos disponibles para la cuenta configurada */}
-      {currentStatus.configured && currentStatus.verified && (
-        <div>
-          <div className="mb-3 flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
-                Modelos Disponibles ({currentProvider.name})
-              </h3>
-              <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
-                Modelos reportados en vivo por la cuenta conectada con esta clave de API.
-              </p>
-            </div>
-            {currentStatus.models && currentStatus.models.length > 0 && (
-              <span className="shrink-0 text-[11px] font-mono text-content-dim bg-[#12181a] px-2.5 py-0.5 rounded border border-border-subtle/50 whitespace-nowrap">
-                {currentStatus.models.length} modelos
-              </span>
-            )}
-          </div>
-
-          {currentStatus.models && currentStatus.models.length > 0 ? (
-            (() => {
-              const filteredModels = currentStatus.models.filter((id) =>
-                id.toLowerCase().includes(modelFilter.trim().toLowerCase())
-              );
-
-              return (
-                <div className="rounded-xl border border-border-subtle/60 bg-[#0b1012] overflow-hidden">
-                  <div className="relative border-b border-border-subtle/40">
-                    <IconSearch
-                      size={13}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-content-dim pointer-events-none"
-                    />
-                    <input
-                      type="text"
-                      value={modelFilter}
-                      onChange={(e) => setModelFilter(e.target.value)}
-                      placeholder="Buscar modelo..."
-                      spellCheck={false}
-                      className="w-full bg-transparent pl-8 pr-3 py-2.5 text-xs text-content-headline placeholder:text-content-dim outline-none"
-                    />
-                  </div>
-
-                  <div className="max-h-52 overflow-y-auto p-2.5">
-                    {filteredModels.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {filteredModels.map((modelId) => {
-                          const isActive = settings.model === modelId;
-                          return (
-                            <button
-                              key={modelId}
-                              type="button"
-                              onClick={() => onUpdate('model', modelId)}
-                              title={modelId}
-                              className={`flex items-center gap-1.5 text-xs font-mono px-2.5 py-2 rounded-lg border transition-colors text-left cursor-pointer ${
-                                isActive
-                                  ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
-                                  : 'border-transparent bg-[#101618] text-content-dim hover:border-border-petrol/60 hover:text-content-headline'
-                              }`}
-                            >
-                              {isActive ? (
-                                <IconCheck size={12} className="shrink-0" />
-                              ) : (
-                                <span className="w-3 shrink-0" />
-                              )}
-                              <span className="truncate">{modelId}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-content-dim px-1 py-2">
-                        Ningún modelo coincide con "{modelFilter}".
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            <p className="text-xs text-content-dim">
-              Esta cuenta no reportó modelos disponibles.
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Sección 2.0: Probar Conexión (envía un mensaje real usando la clave de API estándar, no la Admin Key) */}
       {currentStatus.configured && currentStatus.verified && (
@@ -610,7 +527,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             <p className="text-xs text-content-dim mt-1.5">
               Modelo a probar:{' '}
               <span className="font-mono text-content-headline">
-                {settings.model || 'selecciona uno en Modelos Disponibles'}
+                {settings.model || currentProvider.defaultModel}
               </span>
             </p>
           </div>

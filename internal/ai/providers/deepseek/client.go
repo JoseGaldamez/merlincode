@@ -1,4 +1,4 @@
-package aiproviders
+package deepseek
 
 import (
 	"context"
@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"strings"
 
+	"merlincode/internal/ai/transport"
 	"merlincode/internal/domain"
 )
 
-// DeepSeekValidator verifica claves de API contra el endpoint oficial de DeepSeek.
-// Usa /user/balance en vez de /models porque además de validar la clave retorna
-// el saldo disponible de la cuenta, información más útil para el usuario.
-type DeepSeekValidator struct{}
+// Client verifica credenciales, consulta saldo y envía mensajes a DeepSeek.
+type Client struct{}
 
 type deepSeekBalanceResponse struct {
 	IsAvailable bool `json:"is_available"`
@@ -29,8 +28,6 @@ type deepSeekModelsResponse struct {
 	} `json:"data"`
 }
 
-// deepSeekChatRequest y deepSeekChatResponse reflejan la forma mínima necesaria de
-// /chat/completions (API compatible con OpenAI) para enviar y leer un mensaje de prueba.
 type deepSeekChatRequest struct {
 	Model     string `json:"model"`
 	MaxTokens int    `json:"max_tokens"`
@@ -52,27 +49,24 @@ type deepSeekChatResponse struct {
 	} `json:"error"`
 }
 
-// fetchModels obtiene la lista de modelos disponibles para la cuenta. Se hace en una petición
-// separada porque /user/balance no incluye esta información; un fallo aquí no invalida la
-// verificación de la clave, que ya se confirmó contra /user/balance.
-func (DeepSeekValidator) fetchModels(ctx context.Context, apiKey string) []string {
+func (Client) fetchModels(ctx context.Context, apiKey string) []string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.deepseek.com/models", nil)
 	if err != nil {
 		return nil
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			resp.Body.Close()
-		}
+		transport.CloseHTTPResponse(resp)
 		return nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	var parsed deepSeekModelsResponse
-	_ = json.NewDecoder(resp.Body).Decode(&parsed)
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+		return nil
+	}
 	models := make([]string, 0, len(parsed.Data))
 	for _, m := range parsed.Data {
 		models = append(models, m.ID)
@@ -80,27 +74,27 @@ func (DeepSeekValidator) fetchModels(ctx context.Context, apiKey string) []strin
 	return models
 }
 
-// fetchBalance consulta /user/balance y retorna el texto de saldo junto con el status HTTP crudo
-// para que tanto Validate como FetchUsage puedan interpretarlo según su propio contexto.
-func (DeepSeekValidator) fetchBalance(ctx context.Context, apiKey string) (accountInfo string, statusCode int, err error) {
+func (Client) fetchBalance(ctx context.Context, apiKey string) (accountInfo string, statusCode int, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.deepseek.com/user/balance", nil)
 	if err != nil {
 		return "", 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
 		return "", 0, err
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return "", resp.StatusCode, nil
 	}
 
 	var parsed deepSeekBalanceResponse
-	_ = json.NewDecoder(resp.Body).Decode(&parsed)
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+		return "", resp.StatusCode, err
+	}
 	accountInfo = "Cuenta verificada correctamente"
 	if len(parsed.BalanceInfo) > 0 {
 		b := parsed.BalanceInfo[0]
@@ -109,45 +103,45 @@ func (DeepSeekValidator) fetchBalance(ctx context.Context, apiKey string) (accou
 	return accountInfo, resp.StatusCode, nil
 }
 
-func (d DeepSeekValidator) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
+// Validate realiza una comprobación real contra /user/balance para confirmar la clave y obtener el saldo.
+func (c Client) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return domain.ProviderValidationResult{Valid: false, Message: "La clave de API no puede estar vacía."}, nil
 	}
 
-	accountInfo, statusCode, err := d.fetchBalance(ctx, apiKey)
+	accountInfo, statusCode, err := c.fetchBalance(ctx, apiKey)
 	if err != nil {
-		return domain.ProviderValidationResult{Valid: false, Message: "No se pudo conectar con DeepSeek: " + err.Error()}, nil
+		return domain.ProviderValidationResult{Valid: false, Message: transport.SanitizeTransportError(err, "DeepSeek")}, nil
 	}
 
-	switch {
-	case statusCode == http.StatusOK:
+	switch statusCode {
+	case http.StatusOK:
 		return domain.ProviderValidationResult{
 			Valid:       true,
 			Message:     "Conexión establecida correctamente con DeepSeek.",
 			AccountInfo: accountInfo,
-			Models:      d.fetchModels(ctx, apiKey),
 		}, nil
-	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
+	case http.StatusUnauthorized, http.StatusForbidden:
 		return domain.ProviderValidationResult{Valid: false, Message: "Clave de API inválida o revocada."}, nil
 	default:
 		return domain.ProviderValidationResult{Valid: false, Message: fmt.Sprintf("DeepSeek respondió con estado inesperado (%d).", statusCode)}, nil
 	}
 }
 
-// RequiresAdminKeyForUsage: DeepSeek expone su saldo con la misma clave de API estándar.
-func (DeepSeekValidator) RequiresAdminKeyForUsage() bool { return false }
+// RequiresAdminKeyForUsage indica que DeepSeek no requiere Admin Key para consultar saldo.
+func (Client) RequiresAdminKeyForUsage() bool { return false }
 
-// FetchUsage reutiliza /user/balance para reportar el saldo prepagado real de la cuenta.
-func (d DeepSeekValidator) FetchUsage(ctx context.Context, apiKey string, _ string) (domain.ProviderUsageResult, error) {
+// FetchUsage reutiliza /user/balance para reportar el saldo prepagado disponible.
+func (c Client) FetchUsage(ctx context.Context, apiKey string, _ string) (domain.ProviderUsageResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return domain.ProviderUsageResult{Available: false, Message: "Configura y verifica una clave de API primero."}, nil
 	}
 
-	accountInfo, statusCode, err := d.fetchBalance(ctx, apiKey)
+	accountInfo, statusCode, err := c.fetchBalance(ctx, apiKey)
 	if err != nil {
-		return domain.ProviderUsageResult{Available: false, Message: "No se pudo conectar con DeepSeek: " + err.Error()}, nil
+		return domain.ProviderUsageResult{Available: false, Message: transport.SanitizeTransportError(err, "DeepSeek")}, nil
 	}
 	if statusCode != http.StatusOK {
 		return domain.ProviderUsageResult{Available: false, Message: fmt.Sprintf("DeepSeek respondió con estado inesperado (%d).", statusCode)}, nil
@@ -156,10 +150,8 @@ func (d DeepSeekValidator) FetchUsage(ctx context.Context, apiKey string, _ stri
 	return domain.ProviderUsageResult{Available: true, Message: "Saldo obtenido en vivo desde DeepSeek.", BalanceText: accountInfo}, nil
 }
 
-// SendTestMessage envía un mensaje real y mínimo a /chat/completions usando la clave de API
-// estándar (DeepSeek no tiene un concepto de Admin Key separado; una única clave sirve tanto
-// para consultar el saldo como para generar respuestas del modelo).
-func (DeepSeekValidator) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+// SendTestMessage envía un mensaje de prueba a /chat/completions usando la clave de API estándar.
+func (Client) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	message = strings.TrimSpace(message)
 	model = strings.TrimSpace(model)
@@ -170,7 +162,7 @@ func (DeepSeekValidator) SendTestMessage(ctx context.Context, apiKey string, mes
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "deepseek-chat"
+		model = "deepseek-v4-pro"
 	}
 
 	reqBody := deepSeekChatRequest{Model: model, MaxTokens: 256}
@@ -191,23 +183,34 @@ func (DeepSeekValidator) SendTestMessage(ctx context.Context, apiKey string, mes
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo conectar con DeepSeek: " + err.Error()}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "DeepSeek")}, nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	var parsed deepSeekChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo interpretar la respuesta de DeepSeek."}, nil
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "DeepSeek")}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("DeepSeek respondió con estado inesperado (%d).", resp.StatusCode)
 		if parsed.Error != nil && parsed.Error.Message != "" {
-			errMsg = parsed.Error.Message
+			errLow := strings.ToLower(parsed.Error.Message)
+			if strings.Contains(errLow, "balance") || strings.Contains(errLow, "insufficient") {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: "Tu cuenta de DeepSeek no tiene saldo suficiente. Recarga tu balance en platform.deepseek.com.",
+				}, nil
+			}
+			if strings.Contains(errLow, "not found") || strings.Contains(errLow, "model") {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: fmt.Sprintf("El modelo '%s' no existe en DeepSeek o no está disponible.", model),
+				}, nil
+			}
 		}
-		return domain.TestMessageResult{Success: false, Message: errMsg}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SafeProviderHTTPError("DeepSeek", resp.StatusCode)}, nil
 	}
 
 	var text string

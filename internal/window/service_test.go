@@ -12,7 +12,11 @@ func TestWindowServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error creando tempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("no se pudo limpiar el directorio temporal: %v", err)
+		}
+	})
 
 	testFilePath := filepath.Join(tempDir, "window.json")
 
@@ -55,7 +59,11 @@ func TestWindowServiceConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error creando tempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("no se pudo limpiar el directorio temporal: %v", err)
+		}
+	})
 
 	testFilePath := filepath.Join(tempDir, "window.json")
 	svc := NewServiceWithCustomPath(testFilePath)

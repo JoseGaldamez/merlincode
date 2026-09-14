@@ -1,4 +1,4 @@
-package aiproviders
+package anthropic
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"merlincode/internal/ai/transport"
 	"merlincode/internal/domain"
 )
 
-// AnthropicValidator verifica claves de API contra el endpoint oficial de Anthropic
-type AnthropicValidator struct{}
+// Client verifica credenciales, consulta consumo y envía mensajes a Anthropic.
+type Client struct{}
 
 type anthropicModelsResponse struct {
 	Data []struct {
@@ -22,8 +23,6 @@ type anthropicModelsResponse struct {
 	} `json:"data"`
 }
 
-// anthropicUsageReportResponse refleja la forma de la respuesta de la Admin API de Anthropic
-// para el reporte de uso de mensajes (https://api.anthropic.com/v1/organizations/usage_report/messages)
 type anthropicUsageReportResponse struct {
 	Data []struct {
 		Results []struct {
@@ -34,8 +33,6 @@ type anthropicUsageReportResponse struct {
 	} `json:"data"`
 }
 
-// anthropicCostReportResponse refleja la forma de la respuesta del reporte de costos
-// (https://api.anthropic.com/v1/organizations/cost_report)
 type anthropicCostReportResponse struct {
 	Data []struct {
 		Results []struct {
@@ -45,7 +42,8 @@ type anthropicCostReportResponse struct {
 	} `json:"data"`
 }
 
-func (AnthropicValidator) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
+// Validate realiza una petición real contra /v1/models para confirmar que la clave de API es válida.
+func (Client) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return domain.ProviderValidationResult{Valid: false, Message: "La clave de API no puede estar vacía."}, nil
@@ -58,40 +56,35 @@ func (AnthropicValidator) Validate(ctx context.Context, apiKey string) (domain.P
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
-		return domain.ProviderValidationResult{Valid: false, Message: "No se pudo conectar con Anthropic: " + err.Error()}, nil
+		return domain.ProviderValidationResult{Valid: false, Message: transport.SanitizeTransportError(err, "Anthropic")}, nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
-	switch {
-	case resp.StatusCode == http.StatusOK:
+	switch resp.StatusCode {
+	case http.StatusOK:
 		var parsed anthropicModelsResponse
-		_ = json.NewDecoder(resp.Body).Decode(&parsed)
-		models := make([]string, 0, len(parsed.Data))
-		for _, m := range parsed.Data {
-			models = append(models, m.ID)
+		if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+			return domain.ProviderValidationResult{Valid: false, Message: transport.SanitizeTransportError(err, "Anthropic")}, nil
 		}
 		return domain.ProviderValidationResult{
 			Valid:       true,
 			Message:     "Conexión establecida correctamente con Anthropic.",
-			AccountInfo: fmt.Sprintf("%d modelos disponibles para esta cuenta", len(models)),
-			Models:      models,
+			AccountInfo: "Conectado a Anthropic Console",
 		}, nil
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	case http.StatusUnauthorized, http.StatusForbidden:
 		return domain.ProviderValidationResult{Valid: false, Message: "Clave de API inválida o revocada."}, nil
 	default:
 		return domain.ProviderValidationResult{Valid: false, Message: fmt.Sprintf("Anthropic respondió con estado inesperado (%d).", resp.StatusCode)}, nil
 	}
 }
 
-// RequiresAdminKeyForUsage: el reporte de uso/costo de Anthropic es a nivel de organización y
-// solo es accesible con una Admin API Key, distinta de la clave de API normal de proyecto.
-func (AnthropicValidator) RequiresAdminKeyForUsage() bool { return true }
+// RequiresAdminKeyForUsage indica si FetchUsage necesita una Admin API Key de organización.
+func (Client) RequiresAdminKeyForUsage() bool { return true }
 
-// FetchUsage consulta la Admin API de Anthropic (Usage & Cost Report) para obtener el consumo
-// real de tokens y el costo del día en curso de toda la organización.
-func (AnthropicValidator) FetchUsage(ctx context.Context, _ string, adminKey string) (domain.ProviderUsageResult, error) {
+// FetchUsage consulta la Admin API de Anthropic para obtener el consumo real de tokens y costo del día.
+func (Client) FetchUsage(ctx context.Context, _ string, adminKey string) (domain.ProviderUsageResult, error) {
 	adminKey = strings.TrimSpace(adminKey)
 	if adminKey == "" {
 		return domain.ProviderUsageResult{
@@ -104,10 +97,9 @@ func (AnthropicValidator) FetchUsage(ctx context.Context, _ string, adminKey str
 
 	prompt, completion, err := fetchAnthropicUsageTotals(ctx, adminKey, startingAt)
 	if err != nil {
-		return domain.ProviderUsageResult{Available: false, Message: "No se pudo obtener el uso: " + err.Error()}, nil
+		return domain.ProviderUsageResult{Available: false, Message: transport.SanitizeTransportError(err, "Anthropic")}, nil
 	}
 
-	// El costo es informativo adicional: si falla, igual reportamos los tokens obtenidos.
 	costUsd, _ := fetchAnthropicCostTotal(ctx, adminKey, startingAt)
 
 	return domain.ProviderUsageResult{
@@ -130,18 +122,18 @@ func fetchAnthropicUsageTotals(ctx context.Context, adminKey string, startingAt 
 	req.Header.Set("x-api-key", adminKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
 		return 0, 0, err
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("Anthropic respondió con estado inesperado (%d)", resp.StatusCode)
+		return 0, 0, fmt.Errorf("estado inesperado (%d)", resp.StatusCode)
 	}
 
 	var parsed anthropicUsageReportResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
 		return 0, 0, err
 	}
 
@@ -154,8 +146,6 @@ func fetchAnthropicUsageTotals(ctx context.Context, adminKey string, startingAt 
 	return prompt, completion, nil
 }
 
-// anthropicMessagesRequest y anthropicMessagesResponse reflejan la forma mínima necesaria de
-// /v1/messages (https://api.anthropic.com/v1/messages) para enviar y leer un mensaje de prueba.
 type anthropicMessagesRequest struct {
 	Model     string `json:"model"`
 	MaxTokens int    `json:"max_tokens"`
@@ -175,10 +165,8 @@ type anthropicMessagesResponse struct {
 	} `json:"error"`
 }
 
-// SendTestMessage envía un mensaje real y mínimo a /v1/messages usando la clave de API estándar
-// (la Admin Key no tiene permiso para generar respuestas, solo para consultar datos de organización).
-// Si model viene vacío, usa un modelo económico por defecto.
-func (AnthropicValidator) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+// SendTestMessage envía un mensaje de prueba al modelo usando la clave de API estándar.
+func (Client) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	message = strings.TrimSpace(message)
 	model = strings.TrimSpace(model)
@@ -189,7 +177,7 @@ func (AnthropicValidator) SendTestMessage(ctx context.Context, apiKey string, me
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "claude-3-5-haiku-20241022"
+		model = "claude-sonnet-5"
 	}
 
 	reqBody := anthropicMessagesRequest{Model: model, MaxTokens: 256}
@@ -211,23 +199,34 @@ func (AnthropicValidator) SendTestMessage(ctx context.Context, apiKey string, me
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("content-type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo conectar con Anthropic: " + err.Error()}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "Anthropic")}, nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	var parsed anthropicMessagesResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo interpretar la respuesta de Anthropic."}, nil
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "Anthropic")}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("Anthropic respondió con estado inesperado (%d).", resp.StatusCode)
 		if parsed.Error != nil && parsed.Error.Message != "" {
-			errMsg = parsed.Error.Message
+			errLow := strings.ToLower(parsed.Error.Message)
+			if strings.Contains(errLow, "credit") || strings.Contains(errLow, "balance") {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: "Tu cuenta de Anthropic no tiene créditos disponibles (balance demasiado bajo). Recarga saldo en console.anthropic.com/settings/plans.",
+				}, nil
+			}
+			if strings.Contains(errLow, "not_found") || strings.Contains(errLow, "not found") || strings.Contains(errLow, "model") {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: fmt.Sprintf("El modelo '%s' no existe en Anthropic o tu cuenta no tiene acceso a él.", model),
+				}, nil
+			}
 		}
-		return domain.TestMessageResult{Success: false, Message: errMsg}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SafeProviderHTTPError("Anthropic", resp.StatusCode)}, nil
 	}
 
 	var text string
@@ -253,18 +252,18 @@ func fetchAnthropicCostTotal(ctx context.Context, adminKey string, startingAt st
 	req.Header.Set("x-api-key", adminKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("estado inesperado (%d)", resp.StatusCode)
 	}
 
 	var parsed anthropicCostReportResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
 		return 0, err
 	}
 

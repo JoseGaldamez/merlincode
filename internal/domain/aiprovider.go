@@ -1,10 +1,11 @@
 package domain
 
-// ProviderCredential almacena de forma persistida el estado de la credencial de un proveedor de IA
+// ProviderCredential almacena en memoria el estado y la clave activa de un proveedor de IA.
+// Los secretos (APIKey y AdminAPIKey) están marcados con json:"-" para evitar serialización accidental.
 type ProviderCredential struct {
 	ProviderID  string   `json:"providerId"`
-	APIKey      string   `json:"apiKey"`
-	AdminAPIKey string   `json:"adminApiKey,omitempty"`
+	APIKey      string   `json:"-"`
+	AdminAPIKey string   `json:"-"`
 	Verified    bool     `json:"verified"`
 	VerifiedAt  string   `json:"verifiedAt,omitempty"`
 	AccountInfo string   `json:"accountInfo,omitempty"`
@@ -52,3 +53,19 @@ type TestMessageResult struct {
 	ResponseText string `json:"responseText,omitempty"`
 	Model        string `json:"model,omitempty"`
 }
+
+// ModelConfig define la metadata y rol de un modelo soportado por un proveedor.
+type ModelConfig struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Tier   string `json:"tier"`   // "fast" | "balanced" | "complex"
+	Status string `json:"status"` // "stable" | "preview"
+}
+
+// ProviderConfig define la configuración oficial de modelos y modelo orquestador por proveedor.
+type ProviderConfig struct {
+	Provider          string        `json:"provider"`
+	OrchestratorModel string        `json:"orchestratorModel"`
+	Models            []ModelConfig `json:"models"`
+}
+

@@ -1,0 +1,24 @@
+{
+  "provider": "deepseek",
+  "orchestratorModel": "deepseek-v4-pro",
+  "models": [
+    {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "tier": "complex",
+      "status": "stable"
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "tier": "fast",
+      "status": "stable"
+    },
+    {
+      "id": "deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek V4 Flash Vision",
+      "tier": "vision",
+      "status": "experimental"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-package aiproviders
+package openai
 
 import (
 	"context"
@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"merlincode/internal/ai/transport"
 	"merlincode/internal/domain"
 )
 
-// OpenAIValidator verifica claves de API contra el endpoint oficial de OpenAI
-type OpenAIValidator struct{}
+// Client verifica credenciales, consulta consumo y envía mensajes a OpenAI.
+type Client struct{}
 
 type openAIModelsResponse struct {
 	Data []struct {
@@ -21,8 +22,6 @@ type openAIModelsResponse struct {
 	} `json:"data"`
 }
 
-// openAIUsageResponse refleja la forma de la respuesta de la Admin API de OpenAI
-// para el uso de completions (https://api.openai.com/v1/organization/usage/completions)
 type openAIUsageResponse struct {
 	Data []struct {
 		Results []struct {
@@ -33,8 +32,6 @@ type openAIUsageResponse struct {
 	} `json:"data"`
 }
 
-// openAICostsResponse refleja la forma de la respuesta del reporte de costos
-// (https://api.openai.com/v1/organization/costs)
 type openAICostsResponse struct {
 	Data []struct {
 		Results []struct {
@@ -46,7 +43,8 @@ type openAICostsResponse struct {
 	} `json:"data"`
 }
 
-func (OpenAIValidator) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
+// Validate realiza una petición real contra /v1/models para confirmar que la clave de API es válida.
+func (Client) Validate(ctx context.Context, apiKey string) (domain.ProviderValidationResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return domain.ProviderValidationResult{Valid: false, Message: "La clave de API no puede estar vacía."}, nil
@@ -58,40 +56,35 @@ func (OpenAIValidator) Validate(ctx context.Context, apiKey string) (domain.Prov
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
-		return domain.ProviderValidationResult{Valid: false, Message: "No se pudo conectar con OpenAI: " + err.Error()}, nil
+		return domain.ProviderValidationResult{Valid: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
-	switch {
-	case resp.StatusCode == http.StatusOK:
+	switch resp.StatusCode {
+	case http.StatusOK:
 		var parsed openAIModelsResponse
-		_ = json.NewDecoder(resp.Body).Decode(&parsed)
-		models := make([]string, 0, len(parsed.Data))
-		for _, m := range parsed.Data {
-			models = append(models, m.ID)
+		if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+			return domain.ProviderValidationResult{Valid: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
 		}
 		return domain.ProviderValidationResult{
 			Valid:       true,
 			Message:     "Conexión establecida correctamente con OpenAI.",
-			AccountInfo: fmt.Sprintf("%d modelos disponibles para esta cuenta", len(models)),
-			Models:      models,
+			AccountInfo: "Conectado a OpenAI Platform",
 		}, nil
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	case http.StatusUnauthorized, http.StatusForbidden:
 		return domain.ProviderValidationResult{Valid: false, Message: "Clave de API inválida o revocada."}, nil
 	default:
 		return domain.ProviderValidationResult{Valid: false, Message: fmt.Sprintf("OpenAI respondió con estado inesperado (%d).", resp.StatusCode)}, nil
 	}
 }
 
-// RequiresAdminKeyForUsage: el uso/costo de OpenAI es a nivel de organización y solo es
-// accesible con una Admin API Key, distinta de la clave de API normal de proyecto.
-func (OpenAIValidator) RequiresAdminKeyForUsage() bool { return true }
+// RequiresAdminKeyForUsage indica si FetchUsage necesita una Admin API Key de organización.
+func (Client) RequiresAdminKeyForUsage() bool { return true }
 
-// FetchUsage consulta la Admin API de OpenAI (Usage & Costs) para obtener el consumo real
-// de tokens y el costo del día en curso de toda la organización.
-func (OpenAIValidator) FetchUsage(ctx context.Context, _ string, adminKey string) (domain.ProviderUsageResult, error) {
+// FetchUsage consulta la Admin API de OpenAI para obtener el consumo real de tokens y costo del día.
+func (Client) FetchUsage(ctx context.Context, _ string, adminKey string) (domain.ProviderUsageResult, error) {
 	adminKey = strings.TrimSpace(adminKey)
 	if adminKey == "" {
 		return domain.ProviderUsageResult{
@@ -104,10 +97,9 @@ func (OpenAIValidator) FetchUsage(ctx context.Context, _ string, adminKey string
 
 	prompt, completion, err := fetchOpenAIUsageTotals(ctx, adminKey, startTime)
 	if err != nil {
-		return domain.ProviderUsageResult{Available: false, Message: "No se pudo obtener el uso: " + err.Error()}, nil
+		return domain.ProviderUsageResult{Available: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
 	}
 
-	// El costo es informativo adicional: si falla, igual reportamos los tokens obtenidos.
 	costUsd, _ := fetchOpenAICostTotal(ctx, adminKey, startTime)
 
 	return domain.ProviderUsageResult{
@@ -119,8 +111,6 @@ func (OpenAIValidator) FetchUsage(ctx context.Context, _ string, adminKey string
 	}, nil
 }
 
-// openAIChatRequest y openAIChatResponse reflejan la forma mínima necesaria de
-// /v1/chat/completions para enviar y leer un mensaje de prueba.
 type openAIChatRequest struct {
 	Model     string `json:"model"`
 	MaxTokens int    `json:"max_tokens"`
@@ -139,13 +129,13 @@ type openAIChatResponse struct {
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    any    `json:"code"`
 	} `json:"error"`
 }
 
-// SendTestMessage envía un mensaje real y mínimo a /v1/chat/completions usando la clave de API
-// estándar (la Admin Key de OpenAI no tiene permiso para generar respuestas, solo para
-// consultar datos de organización).
-func (OpenAIValidator) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+// SendTestMessage envía un mensaje de prueba a /v1/chat/completions usando la clave de API estándar.
+func (Client) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	message = strings.TrimSpace(message)
 	model = strings.TrimSpace(model)
@@ -156,7 +146,7 @@ func (OpenAIValidator) SendTestMessage(ctx context.Context, apiKey string, messa
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "gpt-5.6-terra"
 	}
 
 	reqBody := openAIChatRequest{Model: model, MaxTokens: 256}
@@ -177,23 +167,41 @@ func (OpenAIValidator) SendTestMessage(ctx context.Context, apiKey string, messa
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo conectar con OpenAI: " + err.Error()}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	var parsed openAIChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return domain.TestMessageResult{Success: false, Message: "No se pudo interpretar la respuesta de OpenAI."}, nil
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("OpenAI respondió con estado inesperado (%d).", resp.StatusCode)
 		if parsed.Error != nil && parsed.Error.Message != "" {
-			errMsg = parsed.Error.Message
+			errLow := strings.ToLower(parsed.Error.Message)
+			codeStr := strings.ToLower(fmt.Sprintf("%v", parsed.Error.Code))
+			if strings.Contains(errLow, "quota") || strings.Contains(errLow, "billing") || codeStr == "insufficient_quota" {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: "Tu cuenta de OpenAI no tiene saldo disponible o excedió su cuota de uso (insufficient_quota). Recarga créditos en platform.openai.com/settings/organization/billing.",
+				}, nil
+			}
+			if strings.Contains(errLow, "does not exist") || strings.Contains(errLow, "not found") || codeStr == "model_not_found" {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: fmt.Sprintf("El modelo '%s' no existe en la API de OpenAI o tu cuenta no tiene acceso a él.", model),
+				}, nil
+			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				return domain.TestMessageResult{
+					Success: false,
+					Message: "OpenAI limitó temporalmente las solicitudes por exceso de peticiones por minuto (Rate Limit). Intenta de nuevo más tarde.",
+				}, nil
+			}
 		}
-		return domain.TestMessageResult{Success: false, Message: errMsg}, nil
+		return domain.TestMessageResult{Success: false, Message: transport.SafeProviderHTTPError("OpenAI", resp.StatusCode)}, nil
 	}
 
 	var text string
@@ -219,18 +227,18 @@ func fetchOpenAIUsageTotals(ctx context.Context, adminKey string, startTime int6
 	}
 	req.Header.Set("Authorization", "Bearer "+adminKey)
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
 		return 0, 0, err
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("OpenAI respondió con estado inesperado (%d)", resp.StatusCode)
+		return 0, 0, fmt.Errorf("estado inesperado (%d)", resp.StatusCode)
 	}
 
 	var parsed openAIUsageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
 		return 0, 0, err
 	}
 
@@ -252,18 +260,18 @@ func fetchOpenAICostTotal(ctx context.Context, adminKey string, startTime int64)
 	}
 	req.Header.Set("Authorization", "Bearer "+adminKey)
 
-	resp, err := httpClient.Do(req)
+	resp, err := transport.Client.Do(req)
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("estado inesperado (%d)", resp.StatusCode)
 	}
 
 	var parsed openAICostsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
 		return 0, err
 	}
 

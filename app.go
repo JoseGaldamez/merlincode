@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"merlincode/internal/aiproviders"
+	"merlincode/internal/ai"
 	"merlincode/internal/domain"
 	"merlincode/internal/window"
 	"merlincode/internal/workspace"
@@ -26,9 +28,10 @@ type TestMessageResult = domain.TestMessageResult
 // App actúa como la fachada (Facade) que Wails expone al frontend de React
 type App struct {
 	ctx               context.Context
+	cancelFunc        context.CancelFunc
 	windowService     *window.Service
 	workspaceService  *workspace.Service
-	aiProviderService *aiproviders.Service
+	aiProviderService *ai.Service
 }
 
 // NewApp inicializa la estructura de la aplicación y sus servicios de dominio
@@ -36,26 +39,79 @@ func NewApp() *App {
 	return &App{
 		windowService:     window.NewService(),
 		workspaceService:  workspace.NewService(),
-		aiProviderService: aiproviders.NewService(),
+		aiProviderService: ai.NewService(),
 	}
 }
 
 // startup se ejecuta al iniciar la aplicación Wails y guarda el contexto de runtime
 func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+	appCtx, cancel := context.WithCancel(ctx)
+	a.ctx = appCtx
+	a.cancelFunc = cancel
 	if a.windowService.GetState().Maximised {
 		runtime.WindowMaximise(ctx)
 	}
 }
 
-// beforeClose se invoca antes de cerrar para guardar el tamaño final de la ventana
+// beforeClose se invoca antes de cerrar para cancelar peticiones pendientes y guardar el tamaño final de la ventana
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+	if a.cancelFunc != nil {
+		a.cancelFunc()
+	}
 	if a.ctx != nil {
 		isMax := runtime.WindowIsMaximised(a.ctx)
 		w, h := runtime.WindowGetSize(a.ctx)
 		a.windowService.SaveSize(w, h, isMax)
 	}
 	return false
+}
+
+// getAppContext retorna un contexto derivado del ciclo de vida de la aplicación con un timeout específico
+func (a *App) getAppContext(timeout time.Duration) (context.Context, context.CancelFunc, error) {
+	if a.ctx == nil {
+		return nil, nil, domain.ErrRuntimeNotInitialized
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, timeout)
+	return ctx, cancel, nil
+}
+
+func sanitizeAIProviderError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return errors.New("la operación con el proveedor fue cancelada o excedió el tiempo de espera")
+	case errors.Is(err, domain.ErrRuntimeNotInitialized):
+		return domain.ErrRuntimeNotInitialized
+	case errors.Is(err, domain.ErrUnknownAIProvider):
+		return domain.ErrUnknownAIProvider
+	case errors.Is(err, domain.ErrAdminKeyNotSupported):
+		return domain.ErrAdminKeyNotSupported
+	case errors.Is(err, domain.ErrInvalidModel):
+		return domain.ErrInvalidModel
+	case errors.Is(err, domain.ErrMessageTooLarge):
+		return domain.ErrMessageTooLarge
+	case errors.Is(err, domain.ErrRateLimited):
+		return domain.ErrRateLimited
+	case errors.Is(err, domain.ErrConcurrentRequestBlocked):
+		return domain.ErrConcurrentRequestBlocked
+	case errors.Is(err, domain.ErrCredentialMigrationFailed):
+		return domain.ErrCredentialMigrationFailed
+	case errors.Is(err, domain.ErrCredentialStoreUnavailable):
+		return domain.ErrCredentialStoreUnavailable
+	case errors.Is(err, domain.ErrProviderMetadataUnavailable):
+		return domain.ErrProviderMetadataUnavailable
+	default:
+		return domain.ErrAIProviderOperationFailed
+	}
+}
+
+func (a *App) ensureAIProviderReady() error {
+	if a.aiProviderService == nil {
+		return domain.ErrAIProviderOperationFailed
+	}
+	return sanitizeAIProviderError(a.aiProviderService.InitializationError())
 }
 
 // Greet retorna un mensaje de saludo para pruebas
@@ -140,40 +196,79 @@ func (a *App) OpenURLInDefaultBrowser(url string) {
 }
 
 // ListAIProviderStatuses retorna el estado (configurado/verificado/masked key) de cada proveedor de IA soportado
-func (a *App) ListAIProviderStatuses() []ProviderStatus {
-	return a.aiProviderService.ListStatuses()
+func (a *App) ListAIProviderStatuses() ([]ProviderStatus, error) {
+	if err := a.ensureAIProviderReady(); err != nil {
+		return nil, err
+	}
+	return a.aiProviderService.ListStatuses(), nil
 }
 
 // ValidateAndSaveAIProviderKey conecta en vivo contra el proveedor indicado para confirmar que la
 // clave de API es correcta y obtener datos básicos de la cuenta; solo persiste si la validación es exitosa
 func (a *App) ValidateAndSaveAIProviderKey(providerID string, apiKey string) (ProviderValidationResult, error) {
-	return a.aiProviderService.ValidateAndSaveKey(context.Background(), providerID, apiKey)
+	if err := a.ensureAIProviderReady(); err != nil {
+		return ProviderValidationResult{}, err
+	}
+	ctx, cancel, err := a.getAppContext(20 * time.Second)
+	if err != nil {
+		return ProviderValidationResult{}, sanitizeAIProviderError(err)
+	}
+	defer cancel()
+	result, err := a.aiProviderService.ValidateAndSaveKey(ctx, providerID, apiKey)
+	return result, sanitizeAIProviderError(err)
 }
 
-// ClearAIProviderKey elimina la credencial guardada de un proveedor de IA
-func (a *App) ClearAIProviderKey(providerID string) {
-	a.aiProviderService.ClearKey(providerID)
+// ClearAIProviderKey elimina la credencial guardada de un proveedor de IA tanto del llavero como de metadata
+func (a *App) ClearAIProviderKey(providerID string) error {
+	if err := a.ensureAIProviderReady(); err != nil {
+		return err
+	}
+	return sanitizeAIProviderError(a.aiProviderService.ClearKey(providerID))
 }
 
 // SaveAIProviderAdminKey guarda la Admin API Key de un proveedor que la requiera (p. ej. Anthropic)
 // para poder consultar su consumo/costo real de organización
 func (a *App) SaveAIProviderAdminKey(providerID string, adminKey string) error {
-	return a.aiProviderService.SaveAdminKey(providerID, adminKey)
+	if err := a.ensureAIProviderReady(); err != nil {
+		return err
+	}
+	return sanitizeAIProviderError(a.aiProviderService.SaveAdminKey(providerID, adminKey))
 }
 
-// ClearAIProviderAdminKey elimina la Admin API Key guardada de un proveedor
-func (a *App) ClearAIProviderAdminKey(providerID string) {
-	a.aiProviderService.ClearAdminKey(providerID)
+// ClearAIProviderAdminKey elimina la Admin API Key guardada de un proveedor del llavero y de metadata
+func (a *App) ClearAIProviderAdminKey(providerID string) error {
+	if err := a.ensureAIProviderReady(); err != nil {
+		return err
+	}
+	return sanitizeAIProviderError(a.aiProviderService.ClearAdminKey(providerID))
 }
 
 // GetAIProviderUsage consulta en vivo el consumo/costo o saldo real de la cuenta de un proveedor
 func (a *App) GetAIProviderUsage(providerID string) (ProviderUsageResult, error) {
-	return a.aiProviderService.GetProviderUsage(context.Background(), providerID)
+	if err := a.ensureAIProviderReady(); err != nil {
+		return ProviderUsageResult{}, err
+	}
+	ctx, cancel, err := a.getAppContext(20 * time.Second)
+	if err != nil {
+		return ProviderUsageResult{}, sanitizeAIProviderError(err)
+	}
+	defer cancel()
+	result, err := a.aiProviderService.GetProviderUsage(ctx, providerID)
+	return result, sanitizeAIProviderError(err)
 }
 
 // SendAIProviderTestMessage envía un mensaje real de prueba al proveedor indicado usando su clave
 // de API estándar y el modelo seleccionado, para confirmar en la interfaz que la conexión funciona
 // de punta a punta con ese modelo específico
 func (a *App) SendAIProviderTestMessage(providerID string, message string, model string) (TestMessageResult, error) {
-	return a.aiProviderService.SendTestMessage(context.Background(), providerID, message, model)
+	if err := a.ensureAIProviderReady(); err != nil {
+		return TestMessageResult{}, err
+	}
+	ctx, cancel, err := a.getAppContext(30 * time.Second)
+	if err != nil {
+		return TestMessageResult{}, sanitizeAIProviderError(err)
+	}
+	defer cancel()
+	result, err := a.aiProviderService.SendTestMessage(ctx, providerID, message, model)
+	return result, sanitizeAIProviderError(err)
 }

@@ -1,4 +1,4 @@
-package workspace
+package desktop
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 )
 
 // OpenInExplorer abre la carpeta o selecciona el archivo en el explorador nativo del sistema operativo
+// (Windows Explorer, macOS Finder, o Linux file manager vía xdg-open).
 func OpenInExplorer(targetPath string) error {
 	if targetPath == "" {
 		return domain.ErrNoTargetPath

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/platform/desktop"
 )
 
 // ignoredDirNames define directorios que deben excluirse del árbol y listas de archivos
@@ -244,5 +245,5 @@ func (s *Service) OpenExplorer(targetPath string) error {
 		return domain.ErrNoTargetPath
 	}
 
-	return OpenInExplorer(target)
+	return desktop.OpenInExplorer(target)
 }

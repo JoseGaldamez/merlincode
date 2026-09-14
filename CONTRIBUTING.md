@@ -43,9 +43,9 @@ Las siguientes contribuciones son especialmente valoradas y bienvenidas:
 ## 💻 Entorno de Desarrollo Local
 
 Asegúrate de contar con los requisitos instalados tal como se detalla en el [README.md](README.md):
-- **Go 1.21+**
-- **Node.js (versión LTS) & npm**
-- **Wails CLI v2:** `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- **Go 1.26.6**
+- **Node.js 22.13.1 y npm 10.9.2**
+- **Wails CLI v2.15.0:** `go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`
 
 Verifica tu entorno con:
 ```bash
@@ -57,7 +57,7 @@ wails doctor
 ```bash
 # 1. Instalar dependencias de frontend
 cd frontend
-npm install
+npm ci
 cd ..
 
 # 2. Iniciar Wails en modo de desarrollo con Hot Reload
@@ -133,10 +133,21 @@ Antes de enviar un Pull Request, confirma que todas las pruebas pasen y que el p
 # 1. Pruebas unitarias de Go
 go test ./...
 
-# 2. Verificación de TypeScript y compilación de producción del frontend
+# 2. Análisis estático y vulnerabilidades Go
+go vet ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run
+
+# 3. Pruebas, auditoría y compilación reproducible del frontend
 cd frontend
+npm ci
+npm test
+npm audit --audit-level=moderate
 npm run build
 cd ..
+
+# 4. Compilación completa de escritorio
+wails build -clean
 ```
 
 ---

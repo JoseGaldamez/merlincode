@@ -29,4 +29,28 @@ var (
 
 	// ErrAdminKeyNotSupported indica que el proveedor no requiere ni admite una Admin API Key
 	ErrAdminKeyNotSupported = errors.New("este proveedor no admite una clave de administrador para consultar uso real")
+
+	// ErrInvalidModel indica que el modelo solicitado no pertenece a los modelos permitidos para el proveedor
+	ErrInvalidModel = errors.New("el modelo especificado no pertenece a la lista de modelos permitidos para este proveedor")
+
+	// ErrMessageTooLarge indica que el mensaje de prueba excede el límite permitido de 4 KiB
+	ErrMessageTooLarge = errors.New("el mensaje de prueba excede el límite máximo permitido de 4 KiB")
+
+	// ErrRateLimited indica que se debe esperar antes de realizar otra petición de prueba
+	ErrRateLimited = errors.New("por favor espera unos segundos antes de enviar otra solicitud de prueba")
+
+	// ErrConcurrentRequestBlocked indica que ya hay una solicitud de prueba activa para el proveedor
+	ErrConcurrentRequestBlocked = errors.New("ya hay una solicitud de prueba en curso para este proveedor")
+
+	// ErrCredentialStoreUnavailable clasifica fallos del llavero sin exponer detalles del sistema operativo.
+	ErrCredentialStoreUnavailable = errors.New("no se pudo acceder al almacén seguro de credenciales del sistema")
+
+	// ErrProviderMetadataUnavailable clasifica fallos de permisos o persistencia de metadata.
+	ErrProviderMetadataUnavailable = errors.New("no se pudo acceder a la configuración segura de proveedores")
+
+	// ErrCredentialMigrationFailed indica que una configuración heredada no pudo migrarse sin riesgo.
+	ErrCredentialMigrationFailed = errors.New("no se pudo migrar la configuración heredada de credenciales de forma segura")
+
+	// ErrAIProviderOperationFailed evita exponer errores internos inesperados a la interfaz.
+	ErrAIProviderOperationFailed = errors.New("no se pudo completar la operación con el proveedor de inteligencia artificial")
 )
