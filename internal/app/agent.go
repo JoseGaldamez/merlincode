@@ -24,6 +24,13 @@ const MaxTurnTimeout = 15 * time.Minute
 // toolApprovalTimeout es cuánto se espera una respuesta humana antes de considerar la escritura rechazada.
 const toolApprovalTimeout = 10 * time.Minute
 
+// emitChatStreamEvent y logAgentTurnError son variables de paquete (en vez de llamadas directas a
+// runtime.EventsEmit/runtime.LogErrorf) únicamente para permitir sustituirlas por dobles de prueba:
+// esas funciones de Wails exigen un contexto real con "events"/"logger" inyectados por el runtime de
+// la app y abortan el proceso (log.Fatalf) si se les pasa un context.Context de prueba corriente.
+var emitChatStreamEvent = runtime.EventsEmit
+var logAgentTurnError = runtime.LogErrorf
+
 // approvalResponse es lo que RespondToToolApproval envía de vuelta a la goroutine que espera en
 // awaitToolApproval — approved indica si el usuario aprobó, y editedContent (cuando approved es true)
 // es el contenido final a escribir, que puede diferir del que propuso el modelo si el usuario lo editó
@@ -83,7 +90,7 @@ func (a *App) runAgentTurn(ctx context.Context, finish func(), req domain.ChatSt
 						event.ToolArgsSummary = summarizeToolArgs(chunk.ToolCall.Arguments)
 					}
 				}
-				runtime.EventsEmit(a.ctx, "chat:stream", event)
+				emitChatStreamEvent(a.ctx, "chat:stream", event)
 				return nil
 			},
 		)
@@ -198,7 +205,7 @@ func (a *App) awaitToolApproval(ctx context.Context, req domain.ChatStreamReques
 		a.pendingApprovalsMu.Unlock()
 	}()
 
-	runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
+	emitChatStreamEvent(a.ctx, "chat:stream", domain.ChatStreamEvent{
 		SessionID:       req.SessionID,
 		MessageID:       req.MessageID,
 		Type:            domain.ChunkTypeToolApprovalRequired,
@@ -214,7 +221,7 @@ func (a *App) awaitToolApproval(ctx context.Context, req domain.ChatStreamReques
 
 	select {
 	case resp := <-pending.resultCh:
-		runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
+		emitChatStreamEvent(a.ctx, "chat:stream", domain.ChatStreamEvent{
 			SessionID:  req.SessionID,
 			MessageID:  req.MessageID,
 			Type:       domain.ChunkTypeToolApprovalResolved,
@@ -311,10 +318,10 @@ func (a *App) handleAgentTurnError(req domain.ChatStreamRequest, err error, stre
 		return
 	}
 
-	runtime.LogErrorf(a.ctx, "turno de agente falló (provider=%s, model=%s): %v", req.ProviderID, req.ModelID, err)
+	logAgentTurnError(a.ctx, "turno de agente falló (provider=%s, model=%s): %v", req.ProviderID, req.ModelID, err)
 
 	sanitized := sanitizeAIProviderError(err)
-	runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
+	emitChatStreamEvent(a.ctx, "chat:stream", domain.ChatStreamEvent{
 		SessionID:  req.SessionID,
 		MessageID:  req.MessageID,
 		Type:       domain.ChunkTypeError,
@@ -350,7 +357,7 @@ func (a *App) handleAgentTurnError(req domain.ChatStreamRequest, err error, stre
 func (a *App) handleAgentTurnCanceled(req domain.ChatStreamRequest, streamStartTime time.Time, content string, thinking string, toolTrace []domain.ToolTraceEntry) {
 	elapsedSec := max(1, int(time.Since(streamStartTime).Seconds()))
 
-	runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
+	emitChatStreamEvent(a.ctx, "chat:stream", domain.ChatStreamEvent{
 		SessionID:  req.SessionID,
 		MessageID:  req.MessageID,
 		Type:       domain.ChunkTypeDone,
@@ -405,7 +412,7 @@ func (a *App) finishAgentTurn(req domain.ChatStreamRequest, result *domain.ChatC
 		_ = a.sessionService.SaveMessage(context.Background(), asstRecord)
 	}
 
-	runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
+	emitChatStreamEvent(a.ctx, "chat:stream", domain.ChatStreamEvent{
 		SessionID:        req.SessionID,
 		MessageID:        req.MessageID,
 		Type:             domain.ChunkTypeDone,
