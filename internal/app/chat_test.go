@@ -12,7 +12,7 @@ func TestChatSlotSurvivesCancelUntilCompletion(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	a := &App{ctx: ctx}
-	stream, finish, err := a.beginChatStream("same-id")
+	stream, finish, err := a.beginChatStream("same-id", MaxTurnTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,19 +23,19 @@ func TestChatSlotSurvivesCancelUntilCompletion(t *testing.T) {
 		t.Fatal("stream not cancelled")
 	}
 	for _, id := range []string{"same-id", "different-id"} {
-		if _, _, err := a.beginChatStream(id); !errors.Is(err, domain.ErrChatBusy) {
+		if _, _, err := a.beginChatStream(id, MaxTurnTimeout); !errors.Is(err, domain.ErrChatBusy) {
 			t.Fatalf("overlapping stream allowed: %v", err)
 		}
 	}
 	finish()
-	_, nextFinish, err := a.beginChatStream("same-id")
+	_, nextFinish, err := a.beginChatStream("same-id", MaxTurnTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cancel()
 	nextFinish()
 	a.streamsWG.Wait()
-	if _, _, err := a.beginChatStream("new"); !errors.Is(err, context.Canceled) {
+	if _, _, err := a.beginChatStream("new", MaxTurnTimeout); !errors.Is(err, context.Canceled) {
 		t.Fatal("accepted stream after shutdown")
 	}
 }

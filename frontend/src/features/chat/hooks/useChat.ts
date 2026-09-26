@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Message, AgentTelemetry, Project, ChatStreamEvent } from '../../../types';
+import { Message, AgentTelemetry, Project, ChatStreamEvent, ToolActivityEntry } from '../../../types';
 import {
   StartChatStream,
   CancelChatStream,
   GetSessionMessages,
   UpdateMessageFeedback,
+  RespondToToolApproval,
 } from '../../../../wailsjs/go/app/App';
 import { domain } from '../../../../wailsjs/go/models';
 import { EventsOn } from '../../../../wailsjs/runtime/runtime';
@@ -90,6 +91,7 @@ export function useChat({
             durationSeconds: rec.durationSeconds,
             tokensPrompt: rec.tokensPrompt,
             tokensCompletion: rec.tokensCompletion,
+            modelId: rec.modelId || undefined,
             feedback: (rec.feedback as 'like' | 'dislike') || null,
           }));
           setMessages(loaded);
@@ -154,6 +156,71 @@ export function useChat({
         return;
       }
 
+      if (event.type === 'tool_call') {
+        setStreamingStatusText(`Ejecutando ${event.toolName || 'herramienta'}...`);
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== event.messageId) return m;
+            const activity: ToolActivityEntry[] = [...(m.toolActivity || [])];
+            if (event.toolCallId) {
+              activity.push({
+                toolCallId: event.toolCallId,
+                toolName: event.toolName || '',
+                argsSummary: event.toolArgsSummary,
+                status: 'running',
+              });
+            }
+            return { ...m, status: 'tool_running', toolActivity: activity };
+          })
+        );
+        return;
+      }
+
+      if (event.type === 'tool_approval_required') {
+        setStreamingStatusText('Esperando aprobación...');
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== event.messageId) return m;
+            const request = event.approvalRequest;
+            const activity: ToolActivityEntry[] = (m.toolActivity || []).map((a) =>
+              request && a.toolCallId === event.toolCallId
+                ? { ...a, status: 'awaiting_approval' as const, approvalRequest: request }
+                : a
+            );
+            return {
+              ...m,
+              status: 'awaiting_approval',
+              toolActivity: activity,
+              action: request
+                ? {
+                    type: 'tool_approval',
+                    label: 'Aprobar cambio de archivo',
+                    request,
+                  }
+                : m.action,
+            };
+          })
+        );
+        setTelemetry((prev) => ({ ...prev, status: 'human_input' }));
+        return;
+      }
+
+      if (event.type === 'tool_approval_resolved') {
+        setStreamingStatusText('Continuando...');
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== event.messageId) return m;
+            const activity: ToolActivityEntry[] = (m.toolActivity || []).map((a) =>
+              a.toolCallId === event.toolCallId ? { ...a, status: 'done' as const } : a
+            );
+            const action = m.action && m.action.type === 'tool_approval' ? undefined : m.action;
+            return { ...m, status: 'tool_running', toolActivity: activity, action };
+          })
+        );
+        setTelemetry((prev) => ({ ...prev, status: 'synthesizing' }));
+        return;
+      }
+
       if (event.type === 'done') {
         const elapsed = Math.round(performance.now() - streamStartTimeRef.current);
         const elapsedSec = Math.max(1, Math.round(elapsed / 1000));
@@ -171,6 +238,10 @@ export function useChat({
                   durationSeconds: elapsedSec,
                   tokensPrompt: event.tokensPrompt || m.tokensPrompt || 0,
                   tokensCompletion: event.tokensCompletion || m.tokensCompletion || 0,
+                  modelId: event.modelId || m.modelId,
+                  toolActivity: (m.toolActivity || []).map((a) =>
+                    a.status === 'running' || a.status === 'awaiting_approval' ? { ...a, status: 'done' as const } : a
+                  ),
                 }
               : m
           )
@@ -214,6 +285,9 @@ export function useChat({
                   ...m,
                   content: m.content ? `${m.content}\n\n[Error: ${errMsg}]` : `Error: ${errMsg}`,
                   status: 'error',
+                  toolActivity: (m.toolActivity || []).map((a) =>
+                    a.status === 'running' || a.status === 'awaiting_approval' ? { ...a, status: 'error' as const } : a
+                  ),
                 }
               : m
           )
@@ -412,6 +486,19 @@ export function useChat({
     ]
   );
 
+  const resolveToolApproval = useCallback((messageId: string, requestId: string, approved: boolean, editedContent?: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && m.action && m.action.type === 'tool_approval' && m.action.request.requestId === requestId
+          ? { ...m, action: undefined }
+          : m
+      )
+    );
+    RespondToToolApproval(requestId, approved, editedContent ?? '').catch((err) => {
+      console.error('[Merlin Chat] Error respondiendo aprobación de herramienta:', err);
+    });
+  }, []);
+
   const handleFeedback = useCallback((messageId: string, feedback: 'like' | 'dislike' | null) => {
     setMessages((prev) =>
       prev.map((m) =>
@@ -440,5 +527,6 @@ export function useChat({
     setTelemetry,
     sendMessage,
     handleFeedback,
+    resolveToolApproval,
   };
 }

@@ -13,6 +13,8 @@ export interface ChatAreaProps {
   activeProjectName?: string;
   onOpenFolder?: () => void;
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike' | null) => void;
+  onResolveApproval?: (messageId: string, requestId: string, approved: boolean, editedContent?: string) => void;
+  activeModel?: string;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -24,6 +26,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   activeProjectName,
   onOpenFolder,
   onFeedback,
+  onResolveApproval,
+  activeModel,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +56,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 message={msg}
                 onOpenFolder={onOpenFolder}
                 onFeedback={onFeedback}
+                onResolveApproval={onResolveApproval}
               />
             ))
           )}
@@ -66,6 +71,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         isLoading={isLoading}
         onCancelStream={onCancelStream}
         streamingStatusText={streamingStatusText}
+        activeModel={activeModel}
       />
     </main>
   );

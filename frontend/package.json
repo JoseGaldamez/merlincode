@@ -14,12 +14,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "diff": "^7.0.0",
     "dompurify": "3.4.15",
     "marked": "^18.0.13",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/react": "^18.0.17",
     "@types/react-dom": "^18.0.6",
     "@vitejs/plugin-react": "5.2.0",
