@@ -9,12 +9,15 @@ import {
   IconThumbDown,
 } from '../../../components/Icons';
 import { ThoughtChain } from './ThoughtChain';
+import { ToolActivityPanel } from './ToolActivityPanel';
+import { ToolApprovalCard } from './ToolApprovalCard';
 import { FormattedMessageContent } from './FormattedMessageContent';
 
 interface MessageItemProps {
   message: Message;
   onOpenFolder?: () => void;
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike' | null) => void;
+  onResolveApproval?: (messageId: string, requestId: string, approved: boolean, editedContent?: string) => void;
 }
 
 const LiveTimer: React.FC<{
@@ -56,9 +59,14 @@ const LiveTimer: React.FC<{
   );
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder, onFeedback }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder, onFeedback, onResolveApproval }) => {
   const isAssistant = message.role === 'assistant';
-  const isLive = isAssistant && (message.status === 'thinking' || message.status === 'synthesizing');
+  const isLive =
+    isAssistant &&
+    (message.status === 'thinking' ||
+      message.status === 'synthesizing' ||
+      message.status === 'tool_running' ||
+      message.status === 'awaiting_approval');
 
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'like' | 'dislike' | null>(message.feedback || null);
@@ -132,6 +140,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
           <ThoughtChain thoughts={message.thoughtChain} />
         )}
 
+        {/* Optional Tool Activity Panel */}
+        {isAssistant && message.toolActivity && message.toolActivity.length > 0 && (
+          <ToolActivityPanel activity={message.toolActivity} />
+        )}
+
         {/* Message Body */}
         <div
           className={`text-md leading-relaxed transition-all ${
@@ -171,6 +184,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               </button>
             </div>
           )}
+
+          {/* Optional Tool Approval Card */}
+          {message.action && message.action.type === 'tool_approval' && onResolveApproval && (() => {
+            const approvalRequest = message.action.request;
+            return (
+              <ToolApprovalCard
+                request={approvalRequest}
+                onApprove={(editedContent) => onResolveApproval(message.id, approvalRequest.requestId, true, editedContent)}
+                onReject={() => onResolveApproval(message.id, approvalRequest.requestId, false)}
+              />
+            );
+          })()}
 
           {/* Footer toolbar: SOLO visible cuando la respuesta ha terminado por completo */}
           {isAssistant && message.status === 'done' && message.content && (

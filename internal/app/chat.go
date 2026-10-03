@@ -54,7 +54,7 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 	if err := ai.ValidateChatRequest(req.ProviderID, req.ModelID, messages); err != nil {
 		return err
 	}
-	streamCtx, finish, err := a.beginChatStream(req.MessageID)
+	streamCtx, finish, err := a.beginChatStream(req.MessageID, MaxTurnTimeout)
 	if err != nil {
 		return err
 	}
@@ -89,140 +89,9 @@ func (a *App) StartChatStream(req domain.ChatStreamRequest) error {
 		ModelID:    req.ModelID,
 	})
 
-	// 2. Ejecutar streaming en una goroutine independiente para no bloquear el WebView / IPC
-	go func() {
-		defer finish()
-
-		streamStartTime := time.Now()
-		var fullContent strings.Builder
-		var fullThinking strings.Builder
-
-		result, err := a.aiProviderService.StreamChat(
-			streamCtx,
-			req.ProviderID,
-			req.ModelID,
-			messages,
-			func(chunk domain.StreamChunk) error {
-				if chunk.Type == domain.ChunkTypeContent {
-					fullContent.WriteString(chunk.Text)
-				} else if chunk.Type == domain.ChunkTypeThinking {
-					fullThinking.WriteString(chunk.Thinking)
-				}
-
-				event := domain.ChatStreamEvent{
-					SessionID:  req.SessionID,
-					MessageID:  req.MessageID,
-					Type:       chunk.Type,
-					Content:    chunk.Text,
-					Thinking:   chunk.Thinking,
-					ProviderID: req.ProviderID,
-					ModelID:    req.ModelID,
-				}
-				runtime.EventsEmit(a.ctx, "chat:stream", event)
-				return nil
-			},
-		)
-
-		if err != nil {
-			elapsedSec := max(1, int(time.Since(streamStartTime).Seconds()))
-			if errors.Is(err, context.Canceled) {
-				runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
-					SessionID:  req.SessionID,
-					MessageID:  req.MessageID,
-					Type:       domain.ChunkTypeDone,
-					StatusText: "Generación detenida.",
-					ProviderID: req.ProviderID,
-				})
-
-				if a.sessionService != nil && req.SessionID != "" {
-					stoppedContent := fullContent.String()
-					if stoppedContent != "" {
-						stoppedContent += "\n\n*(Generación detenida)*"
-					} else {
-						stoppedContent = "*(Generación detenida)*"
-					}
-					asstRecord := domain.ChatMessageRecord{
-						ID:              req.MessageID,
-						SessionID:       req.SessionID,
-						Role:            domain.ChatRoleAssistant,
-						Content:         stoppedContent,
-						ThoughtChain:    fullThinking.String(),
-						ProviderID:      req.ProviderID,
-						ModelID:         req.ModelID,
-						DurationSeconds: elapsedSec,
-						Status:          "done",
-						CreatedAt:       time.Now().UTC(),
-					}
-					_ = a.sessionService.SaveMessage(context.Background(), asstRecord)
-				}
-				return
-			}
-
-			err = sanitizeAIProviderError(err)
-			runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
-				SessionID:  req.SessionID,
-				MessageID:  req.MessageID,
-				Type:       domain.ChunkTypeError,
-				Error:      err.Error(),
-				ProviderID: req.ProviderID,
-			})
-
-			if a.sessionService != nil && req.SessionID != "" {
-				errContent := fullContent.String()
-				if errContent != "" {
-					errContent += fmt.Sprintf("\n\n[Error: %s]", err.Error())
-				} else {
-					errContent = fmt.Sprintf("Error: %s", err.Error())
-				}
-				asstRecord := domain.ChatMessageRecord{
-					ID:              req.MessageID,
-					SessionID:       req.SessionID,
-					Role:            domain.ChatRoleAssistant,
-					Content:         errContent,
-					ThoughtChain:    fullThinking.String(),
-					ProviderID:      req.ProviderID,
-					ModelID:         req.ModelID,
-					DurationSeconds: elapsedSec,
-					Status:          "error",
-					CreatedAt:       time.Now().UTC(),
-				}
-				_ = a.sessionService.SaveMessage(context.Background(), asstRecord)
-			}
-			return
-		}
-
-		elapsedSec := max(1, int(time.Since(streamStartTime).Seconds()))
-
-		// Guardar respuesta del asistente en SQLite
-		if a.sessionService != nil && req.SessionID != "" {
-			asstRecord := domain.ChatMessageRecord{
-				ID:               req.MessageID,
-				SessionID:        req.SessionID,
-				Role:             domain.ChatRoleAssistant,
-				Content:          result.Content,
-				ThoughtChain:     result.Thinking,
-				ProviderID:       req.ProviderID,
-				ModelID:          result.Model,
-				TokensPrompt:     result.TokensPrompt,
-				TokensCompletion: result.TokensCompletion,
-				DurationSeconds:  elapsedSec,
-				Status:           "done",
-				CreatedAt:        time.Now().UTC(),
-			}
-			_ = a.sessionService.SaveMessage(context.Background(), asstRecord)
-		}
-
-		// 3. Emitir evento de finalización exitosa
-		runtime.EventsEmit(a.ctx, "chat:stream", domain.ChatStreamEvent{
-			SessionID:        req.SessionID,
-			MessageID:        req.MessageID,
-			Type:             domain.ChunkTypeDone,
-			ProviderID:       req.ProviderID,
-			ModelID:          result.Model,
-			TokensPrompt:     result.TokensPrompt,
-			TokensCompletion: result.TokensCompletion,
-		})
-	}()
+	// 2. Ejecutar el turno de agente (streaming + posibles iteraciones de tool-calling) en una
+	// goroutine independiente para no bloquear el WebView / IPC.
+	go a.runAgentTurn(streamCtx, finish, req, messages)
 
 	return nil
 }
@@ -244,7 +113,7 @@ func (a *App) CancelChatStream(messageID string) bool {
 }
 
 // beginChatStream reserves a single slot until completion, including cancellation cleanup.
-func (a *App) beginChatStream(messageID string) (context.Context, func(), error) {
+func (a *App) beginChatStream(messageID string, timeout time.Duration) (context.Context, func(), error) {
 	a.activeStreamsMu.Lock()
 	defer a.activeStreamsMu.Unlock()
 	if a.ctx == nil {
@@ -256,7 +125,7 @@ func (a *App) beginChatStream(messageID string) (context.Context, func(), error)
 	if len(a.activeStreams) != 0 {
 		return nil, nil, domain.ErrChatBusy
 	}
-	ctx, cancel := context.WithTimeout(a.ctx, ai.ChatTimeout)
+	ctx, cancel := context.WithTimeout(a.ctx, timeout)
 	if a.activeStreams == nil {
 		a.activeStreams = make(map[string]context.CancelFunc)
 	}

@@ -11,8 +11,10 @@ const (
 
 // ChatMessage representa un mensaje dentro del historial de la conversación.
 type ChatMessage struct {
-	Role    ChatRole `json:"role"`
-	Content string   `json:"content"`
+	Role        ChatRole     `json:"role"`
+	Content     string       `json:"content"`
+	ToolCalls   []ToolCall   `json:"toolCalls,omitempty"`
+	ToolResults []ToolResult `json:"toolResults,omitempty"`
 }
 
 // ChatStreamRequest contiene los parámetros para iniciar una respuesta en streaming desde el frontend.
@@ -35,6 +37,12 @@ const (
 	ChunkTypeContent  StreamChunkType = "content"
 	ChunkTypeDone     StreamChunkType = "done"
 	ChunkTypeError    StreamChunkType = "error"
+	ChunkTypeToolCall StreamChunkType = "tool_call"
+
+	// ChunkTypeToolApprovalRequired y ChunkTypeToolApprovalResolved solo los emite la capa de
+	// orquestación en internal/app, nunca los providers directamente.
+	ChunkTypeToolApprovalRequired StreamChunkType = "tool_approval_required"
+	ChunkTypeToolApprovalResolved StreamChunkType = "tool_approval_resolved"
 )
 
 // StreamChunk representa un fragmento de contenido o pensamiento recibido en tiempo real.
@@ -42,6 +50,7 @@ type StreamChunk struct {
 	Type     StreamChunkType `json:"type"`
 	Text     string          `json:"text,omitempty"`
 	Thinking string          `json:"thinking,omitempty"`
+	ToolCall *ToolCall       `json:"toolCall,omitempty"`
 }
 
 // ChatStreamEvent es el evento estructurado que se transmite en tiempo real vía Wails hacia el frontend.
@@ -57,13 +66,18 @@ type ChatStreamEvent struct {
 	TokensPrompt     int64           `json:"tokensPrompt,omitempty"`
 	TokensCompletion int64           `json:"tokensCompletion,omitempty"`
 	Error            string          `json:"error,omitempty"`
+	ToolName         string          `json:"toolName,omitempty"`
+	ToolCallID       string          `json:"toolCallId,omitempty"`
+	ToolArgsSummary  string          `json:"toolArgsSummary,omitempty"`
+	ApprovalRequest  *ToolApprovalRequest `json:"approvalRequest,omitempty"`
 }
 
 // ChatCompletionResult almacena el resultado final de la generación del chat.
 type ChatCompletionResult struct {
-	Content          string `json:"content"`
-	Thinking         string `json:"thinking,omitempty"`
-	Model            string `json:"model"`
-	TokensPrompt     int64  `json:"tokensPrompt"`
-	TokensCompletion int64  `json:"tokensCompletion"`
+	Content          string     `json:"content"`
+	Thinking         string     `json:"thinking,omitempty"`
+	Model            string     `json:"model"`
+	TokensPrompt     int64      `json:"tokensPrompt"`
+	TokensCompletion int64      `json:"tokensCompletion"`
+	ToolCalls        []ToolCall `json:"toolCalls,omitempty"`
 }

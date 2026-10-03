@@ -59,4 +59,16 @@ var (
 
 	// ErrAIProviderOperationFailed evita exponer errores internos inesperados a la interfaz.
 	ErrAIProviderOperationFailed = errors.New("no se pudo completar la operación con el proveedor de inteligencia artificial")
+
+	// ErrToolApprovalTimedOut indica que una escritura pendiente de aprobación no fue resuelta a tiempo.
+	ErrToolApprovalTimedOut = errors.New("se agotó el tiempo de espera para la aprobación de la escritura de archivo")
+
+	// ErrApprovalRequestNotFound indica que la solicitud de aprobación ya fue resuelta o expiró.
+	ErrApprovalRequestNotFound = errors.New("la solicitud de aprobación no existe o ya fue resuelta")
+
+	// ErrToolExecutionFailed indica que una herramienta falló al ejecutarse.
+	ErrToolExecutionFailed = errors.New("no se pudo ejecutar la herramienta solicitada por el modelo")
+
+	// ErrMaxToolIterationsExceeded indica que el turno del agente alcanzó el límite de iteraciones de herramientas.
+	ErrMaxToolIterationsExceeded = errors.New("se alcanzó el límite máximo de iteraciones de herramientas en este turno")
 )
