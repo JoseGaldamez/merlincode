@@ -1,7 +1,23 @@
-export interface MessageAction {
-  type: 'open_folder';
-  label: string;
+export interface ToolApprovalRequest {
+  requestId: string;
+  toolName: string;
+  path: string;
+  newContent: string;
+  oldContent?: string;
+  expiresAt: number; // epoch ms — tras este momento el backend rechaza automáticamente la solicitud
 }
+
+export interface ToolActivityEntry {
+  toolCallId: string;
+  toolName: string;
+  argsSummary?: string;
+  status: 'running' | 'awaiting_approval' | 'done' | 'error' | 'rejected';
+  approvalRequest?: ToolApprovalRequest;
+}
+
+export type MessageAction =
+  | { type: 'open_folder'; label: string }
+  | { type: 'tool_approval'; label: string; request: ToolApprovalRequest };
 
 export interface Message {
   id: string;
@@ -14,13 +30,15 @@ export interface Message {
     code: string;
     filename?: string;
   };
-  status?: 'idle' | 'thinking' | 'synthesizing' | 'done' | 'error';
+  status?: 'idle' | 'thinking' | 'synthesizing' | 'done' | 'error' | 'tool_running' | 'awaiting_approval';
   action?: MessageAction;
+  modelId?: string;
   startedAt?: number;
   durationSeconds?: number;
   tokensPrompt?: number;
   tokensCompletion?: number;
   feedback?: 'like' | 'dislike' | null;
+  toolActivity?: ToolActivityEntry[];
 }
 
 export interface Session {
@@ -61,7 +79,15 @@ export interface Project {
 export interface ChatStreamEvent {
   sessionId?: string;
   messageId: string;
-  type: 'status' | 'thinking' | 'content' | 'done' | 'error';
+  type:
+    | 'status'
+    | 'thinking'
+    | 'content'
+    | 'done'
+    | 'error'
+    | 'tool_call'
+    | 'tool_approval_required'
+    | 'tool_approval_resolved';
   content?: string;
   thinking?: string;
   error?: string;
@@ -70,5 +96,9 @@ export interface ChatStreamEvent {
   modelId?: string;
   tokensPrompt?: number;
   tokensCompletion?: number;
+  toolName?: string;
+  toolCallId?: string;
+  toolArgsSummary?: string;
+  approvalRequest?: ToolApprovalRequest;
 }
 

@@ -30,4 +30,7 @@ type ChatMessageRecord struct {
 	Feedback         *string   `json:"feedback,omitempty"` // "like", "dislike" o nil
 	Status           string    `json:"status,omitempty"`   // "done", "error", etc.
 	CreatedAt        time.Time `json:"createdAt"`
+
+	// ToolTrace registra las herramientas ejecutadas durante este turno de agente (puede ir vacío).
+	ToolTrace []ToolTraceEntry `json:"toolTrace,omitempty"`
 }

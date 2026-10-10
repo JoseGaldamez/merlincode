@@ -74,6 +74,10 @@ export function ReadProjectFile(arg1) {
   return window['go']['app']['App']['ReadProjectFile'](arg1);
 }
 
+export function RespondToToolApproval(arg1, arg2, arg3) {
+  return window['go']['app']['App']['RespondToToolApproval'](arg1, arg2, arg3);
+}
+
 export function SaveAIProviderAdminKey(arg1, arg2) {
   return window['go']['app']['App']['SaveAIProviderAdminKey'](arg1, arg2);
 }

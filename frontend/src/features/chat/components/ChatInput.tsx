@@ -9,6 +9,7 @@ interface ChatInputProps {
   streamingStatusText?: string;
   disabled?: boolean;
   placeholder?: string;
+  activeModel?: string;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -17,6 +18,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onCancelStream,
   disabled = false,
   placeholder = 'Escribe un mensaje...',
+  activeModel,
 }) => {
   const [inputText, setInputText] = useState('');
   const textareaRef = useAutoResizeTextarea(inputText, { minHeight: 24, maxHeight: 140 });
@@ -58,6 +60,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             rows={1}
             disabled={disabled}
           />
+
+          {/* Modelo activo, justo al lado del botón de enviar */}
+          {activeModel && (
+            <span
+              className="hidden sm:inline-flex items-center text-[11px] font-mono font-medium text-content-dim bg-[#12191d] border border-border-subtle/50 rounded px-1.5 py-0.5 shrink-0 select-none"
+              title={`Modelo activo: ${activeModel}`}
+            >
+              {activeModel}
+            </span>
+          )}
 
           {/* Botón de acción moderno */}
           {isLoading ? (

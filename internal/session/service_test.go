@@ -123,3 +123,69 @@ func TestSessionService(t *testing.T) {
 		t.Errorf("los mensajes no se eliminaron en cascada, quedaron %d", len(msgs))
 	}
 }
+
+func TestSessionService_ToolTracePersistence(t *testing.T) {
+	ctx := context.Background()
+	svc, err := session.NewService("file:testmemdb_tooltrace?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("falló NewService: %v", err)
+	}
+	defer svc.Close()
+
+	if _, err := svc.CreateSession(ctx, "sess-tt", "Sesión con tools", "proj-1", "D:/test"); err != nil {
+		t.Fatalf("error al crear sesión: %v", err)
+	}
+
+	approved := true
+	rejected := false
+	msg := domain.ChatMessageRecord{
+		ID:        "msg-tt-1",
+		SessionID: "sess-tt",
+		Role:      domain.ChatRoleAssistant,
+		Content:   "Leí el archivo y actualicé el otro.",
+		Status:    "done",
+		CreatedAt: time.Now(),
+		ToolTrace: []domain.ToolTraceEntry{
+			{ToolName: "read_file", Arguments: `{"path":"a.txt"}`, Result: "contenido de a.txt"},
+			{ToolName: "write_file", Arguments: `{"path":"b.txt","content":"x"}`, Result: "Archivo 'b.txt' escrito correctamente.", Approved: &approved},
+			{ToolName: "write_file", Arguments: `{"path":"c.txt","content":"y"}`, Result: "el usuario rechazó esta escritura de archivo", IsError: true, Approved: &rejected},
+		},
+	}
+	if err := svc.SaveMessage(ctx, msg); err != nil {
+		t.Fatalf("error al guardar mensaje con tool_trace: %v", err)
+	}
+
+	// Mensaje sin tool_trace: debe recargar con ToolTrace vacío/nulo, sin romper el parseo.
+	if err := svc.SaveMessage(ctx, domain.ChatMessageRecord{
+		ID: "msg-tt-2", SessionID: "sess-tt", Role: domain.ChatRoleUser, Content: "hola",
+		CreatedAt: time.Now().Add(time.Second),
+	}); err != nil {
+		t.Fatalf("error al guardar mensaje sin tool_trace: %v", err)
+	}
+
+	msgs, err := svc.GetSessionMessages(ctx, "sess-tt")
+	if err != nil {
+		t.Fatalf("error al obtener mensajes: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("se esperaban 2 mensajes, obtenidos: %d", len(msgs))
+	}
+
+	trace := msgs[0].ToolTrace
+	if len(trace) != 3 {
+		t.Fatalf("se esperaban 3 entradas de tool_trace, obtenidas: %d", len(trace))
+	}
+	if trace[0].ToolName != "read_file" || trace[0].IsError {
+		t.Errorf("primera entrada de traza inesperada: %+v", trace[0])
+	}
+	if trace[1].Approved == nil || !*trace[1].Approved {
+		t.Errorf("segunda entrada debía reflejar aprobación: %+v", trace[1])
+	}
+	if trace[2].Approved == nil || *trace[2].Approved || !trace[2].IsError {
+		t.Errorf("tercera entrada debía reflejar rechazo con error: %+v", trace[2])
+	}
+
+	if len(msgs[1].ToolTrace) != 0 {
+		t.Errorf("mensaje sin tool_trace debía cargar vacío, obtenido: %+v", msgs[1].ToolTrace)
+	}
+}

@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -94,8 +95,47 @@ func (s *Service) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id, created_at ASC);
 	CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at DESC);
 	`
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	return s.ensureToolTraceColumn()
+}
+
+// ensureToolTraceColumn agrega la columna tool_trace a bases de datos creadas antes de que existiera,
+// sin tocar el resto del esquema ni ampliar el CHECK de role.
+func (s *Service) ensureToolTraceColumn() error {
+	rows, err := s.db.Query(`PRAGMA table_info(messages);`)
+	if err != nil {
+		return fmt.Errorf("error al inspeccionar el esquema de messages: %w", err)
+	}
+	defer rows.Close()
+
+	hasColumn := false
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dflt, &pk); err != nil {
+			return fmt.Errorf("error al leer columna de messages: %w", err)
+		}
+		if name == "tool_trace" {
+			hasColumn = true
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterando columnas de messages: %w", err)
+	}
+	if hasColumn {
+		return nil
+	}
+
+	_, err = s.db.Exec(`ALTER TABLE messages ADD COLUMN tool_trace TEXT NOT NULL DEFAULT '';`)
+	if err != nil {
+		return fmt.Errorf("error al agregar columna tool_trace: %w", err)
+	}
+	return nil
 }
 
 // ListSessions retorna todas las sesiones ordenadas por última actualización descendente.
@@ -260,7 +300,7 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 
 	query := `
 	SELECT id, session_id, role, content, thought_chain, provider_id, model_id,
-	       tokens_prompt, tokens_completion, duration_seconds, feedback, status, created_at
+	       tokens_prompt, tokens_completion, duration_seconds, feedback, status, created_at, tool_trace
 	FROM messages
 	WHERE session_id = ?
 	ORDER BY created_at ASC;
@@ -276,6 +316,7 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 		var m domain.ChatMessageRecord
 		var roleStr string
 		var fb sql.NullString
+		var toolTraceJSON string
 
 		if err := rows.Scan(
 			&m.ID,
@@ -291,6 +332,7 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 			&fb,
 			&m.Status,
 			&m.CreatedAt,
+			&toolTraceJSON,
 		); err != nil {
 			return nil, fmt.Errorf("error al leer mensaje de base de datos: %w", err)
 		}
@@ -298,6 +340,11 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 		m.Role = domain.ChatRole(roleStr)
 		if fb.Valid {
 			m.Feedback = &fb.String
+		}
+		if toolTraceJSON != "" {
+			if err := json.Unmarshal([]byte(toolTraceJSON), &m.ToolTrace); err != nil {
+				return nil, fmt.Errorf("error al decodificar tool_trace del mensaje %s: %w", m.ID, err)
+			}
 		}
 
 		messages = append(messages, m)
@@ -350,11 +397,20 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		fb = sql.NullString{String: *msg.Feedback, Valid: true}
 	}
 
+	toolTraceJSON := ""
+	if len(msg.ToolTrace) > 0 {
+		data, err := json.Marshal(msg.ToolTrace)
+		if err != nil {
+			return fmt.Errorf("error al codificar tool_trace del mensaje: %w", err)
+		}
+		toolTraceJSON = string(data)
+	}
+
 	query := `
 	INSERT INTO messages (
 		id, session_id, role, content, thought_chain, provider_id, model_id,
-		tokens_prompt, tokens_completion, duration_seconds, feedback, status, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		tokens_prompt, tokens_completion, duration_seconds, feedback, status, created_at, tool_trace
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(id) DO UPDATE SET
 		content = excluded.content,
 		thought_chain = excluded.thought_chain,
@@ -364,7 +420,8 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		tokens_completion = excluded.tokens_completion,
 		duration_seconds = excluded.duration_seconds,
 		feedback = COALESCE(excluded.feedback, messages.feedback),
-		status = excluded.status;
+		status = excluded.status,
+		tool_trace = excluded.tool_trace;
 	`
 	_, err := s.db.ExecContext(ctx, query,
 		msg.ID,
@@ -380,6 +437,7 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		fb,
 		msg.Status,
 		msg.CreatedAt,
+		toolTraceJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("error al guardar mensaje en base de datos: %w", err)

@@ -28,6 +28,9 @@ type App struct {
 	streamsWG         sync.WaitGroup
 	activeStreamsMu   sync.Mutex
 	activeStreams     map[string]context.CancelFunc
+
+	pendingApprovalsMu sync.Mutex
+	pendingApprovals   map[string]*pendingApproval
 }
 
 // NewApp inicializa la estructura de la aplicación y sus servicios de dominio
@@ -50,6 +53,7 @@ func NewApp() *App {
 		aiProviderService: ai.NewService(),
 		sessionService:    sessionSvc,
 		activeStreams:     make(map[string]context.CancelFunc),
+		pendingApprovals:  make(map[string]*pendingApproval),
 	}
 }
 

@@ -33,3 +33,11 @@ type StreamChunk = domain.StreamChunk
 type Streamer interface {
 	StreamChat(ctx context.Context, apiKey string, model string, messages []domain.ChatMessage, onChunk func(chunk domain.StreamChunk) error) (*domain.ChatCompletionResult, error)
 }
+
+// ToolCaller es un contrato opcional para proveedores que admiten tool-calling nativo.
+// Sigue el mismo patrón de capacidades opcionales vía type assertion que Streamer/UsageFetcher/MessageTester.
+// Las llamadas a herramientas solicitadas por el modelo se devuelven en ChatCompletionResult.ToolCalls.
+type ToolCaller interface {
+	StreamChatWithTools(ctx context.Context, apiKey string, model string, messages []domain.ChatMessage,
+		tools []domain.ToolDefinition, onChunk func(chunk domain.StreamChunk) error) (*domain.ChatCompletionResult, error)
+}

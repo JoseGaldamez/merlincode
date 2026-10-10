@@ -1,8 +1,46 @@
 export namespace domain {
 	
+	export class ToolResult {
+	    toolCallId: string;
+	    name: string;
+	    content: string;
+	    isError?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.toolCallId = source["toolCallId"];
+	        this.name = source["name"];
+	        this.content = source["content"];
+	        this.isError = source["isError"];
+	    }
+	}
+	export class ToolCall {
+	    id: string;
+	    name: string;
+	    arguments: string;
+	    thoughtSignature?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolCall(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.arguments = source["arguments"];
+	        this.thoughtSignature = source["thoughtSignature"];
+	    }
+	}
 	export class ChatMessage {
 	    role: string;
 	    content: string;
+	    toolCalls?: ToolCall[];
+	    toolResults?: ToolResult[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ChatMessage(source);
@@ -12,6 +50,46 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.role = source["role"];
 	        this.content = source["content"];
+	        this.toolCalls = this.convertValues(source["toolCalls"], ToolCall);
+	        this.toolResults = this.convertValues(source["toolResults"], ToolResult);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ToolTraceEntry {
+	    toolName: string;
+	    arguments: string;
+	    result: string;
+	    isError?: boolean;
+	    approved?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolTraceEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.toolName = source["toolName"];
+	        this.arguments = source["arguments"];
+	        this.result = source["result"];
+	        this.isError = source["isError"];
+	        this.approved = source["approved"];
 	    }
 	}
 	export class ChatMessageRecord {
@@ -29,6 +107,7 @@ export namespace domain {
 	    status?: string;
 	    // Go type: time
 	    createdAt: any;
+	    toolTrace?: ToolTraceEntry[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ChatMessageRecord(source);
@@ -49,6 +128,7 @@ export namespace domain {
 	        this.feedback = source["feedback"];
 	        this.status = source["status"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.toolTrace = this.convertValues(source["toolTrace"], ToolTraceEntry);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -331,6 +411,9 @@ export namespace domain {
 	        this.model = source["model"];
 	    }
 	}
+	
+	
+	
 	export class WindowState {
 	    width: number;
 	    height: number;

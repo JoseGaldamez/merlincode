@@ -43,6 +43,14 @@ func sanitizeAIProviderError(err error) error {
 		return domain.ErrCredentialStoreUnavailable
 	case errors.Is(err, domain.ErrProviderMetadataUnavailable):
 		return domain.ErrProviderMetadataUnavailable
+	case errors.Is(err, domain.ErrToolApprovalTimedOut):
+		return domain.ErrToolApprovalTimedOut
+	case errors.Is(err, domain.ErrApprovalRequestNotFound):
+		return domain.ErrApprovalRequestNotFound
+	case errors.Is(err, domain.ErrToolExecutionFailed):
+		return domain.ErrToolExecutionFailed
+	case errors.Is(err, domain.ErrMaxToolIterationsExceeded):
+		return domain.ErrMaxToolIterationsExceeded
 	default:
 		return domain.ErrAIProviderOperationFailed
 	}

@@ -38,6 +38,8 @@ export function OpenURLInDefaultBrowser(arg1:string):Promise<void>;
 
 export function ReadProjectFile(arg1:string):Promise<string>;
 
+export function RespondToToolApproval(arg1:string,arg2:boolean,arg3:string):Promise<void>;
+
 export function SaveAIProviderAdminKey(arg1:string,arg2:string):Promise<void>;
 
 export function SaveChatMessage(arg1:domain.ChatMessageRecord):Promise<void>;

@@ -51,6 +51,7 @@ export function App() {
     telemetry,
     setTelemetry,
     handleFeedback,
+    resolveToolApproval,
   } = useChat({
     activeProject,
     activeSessionId,
@@ -153,6 +154,8 @@ export function App() {
           activeProjectName={activeProject?.name}
           onOpenFolder={openFolderDialog}
           onFeedback={handleFeedback}
+          onResolveApproval={resolveToolApproval}
+          activeModel={settings.model || telemetry.activeModel}
         />
 
         <RightSidebar
