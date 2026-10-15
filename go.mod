@@ -2,7 +2,7 @@ module merlincode
 
 go 1.25.0
 
-toolchain go1.26.6
+toolchain go1.26.9
 
 require (
 	github.com/wailsapp/wails/v2 v2.15.0

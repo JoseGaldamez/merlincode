@@ -9,7 +9,7 @@
 
   <p>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-teal.svg?style=for-the-badge" alt="License: MIT" /></a>
-    <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26.6-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" /></a>
+    <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26.9-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" /></a>
     <a href="https://wails.io"><img src="https://img.shields.io/badge/Wails-v2.15.0-DF0000?style=for-the-badge&logo=wails&logoColor=white" alt="Wails Version" /></a>
     <a href="https://react.dev"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18" /></a>
     <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" /></a>

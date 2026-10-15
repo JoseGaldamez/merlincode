@@ -43,7 +43,7 @@ Las siguientes contribuciones son especialmente valoradas y bienvenidas:
 ## 💻 Entorno de Desarrollo Local
 
 Asegúrate de contar con los requisitos instalados tal como se detalla en el [README.md](README.md):
-- **Go 1.26.6**
+- **Go 1.26.9**
 - **Node.js 22.13.1 y npm 10.9.2**
 - **Wails CLI v2.15.0:** `go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`
 
