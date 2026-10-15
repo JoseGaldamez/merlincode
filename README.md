@@ -17,22 +17,22 @@
   </p>
 
   <p>
-    <a href="#-descripción-del-proyecto">Descripción</a> •
-    <a href="#-características-principales">Características</a> •
-    <a href="#-guía-de-instalación-desde-cero">Instalación desde Cero</a> •
-    <a href="#-ejecución-y-desarrollo">Ejecución</a> •
-    <a href="#-claves-de-api-de-proveedores-de-ia">Claves de API</a> •
-    <a href="#-compilación-para-producción">Compilación</a> •
-    <a href="#%EF%B8%8F-arquitectura-del-proyecto">Arquitectura</a> •
-    <a href="#-creador">Creador</a> •
-    <a href="#%EF%B8%8F-licencia">Licencia</a>
+    <a href="#descripción-del-proyecto">Descripción</a> •
+    <a href="#características-principales">Características</a> •
+    <a href="#guía-de-instalación-desde-cero">Instalación desde Cero</a> •
+    <a href="#ejecución-y-desarrollo">Ejecución</a> •
+    <a href="#claves-de-api-de-proveedores-de-ia">Claves de API</a> •
+    <a href="#compilación-para-producción">Compilación</a> •
+    <a href="#arquitectura-del-proyecto">Arquitectura</a> •
+    <a href="#creador">Creador</a> •
+    <a href="#licencia">Licencia</a>
   </p>
 
 </div>
 
 ---
 
-## 📖 Descripción del Proyecto
+## Descripción del Proyecto
 
 **Merlin Code** es una aplicación de escritorio multiplataforma (Windows, macOS y Linux) diseñada para actuar como un compañero inteligente de desarrollo y pair programming. A diferencia de las herramientas web tradicionales, Merlin Code se ejecuta como una aplicación nativa ligera con bajo consumo de memoria y acceso seguro y controlado al sistema de archivos local.
 
@@ -40,28 +40,28 @@ La aplicación opera bajo un modelo de **espacio de trabajo confinado (sandboxin
 
 ---
 
-## ✨ Características Principales
+## Características Principales
 
-- 🛡️ **Espacio de Trabajo Confinado (Sandboxing Estricto):**
+- **Espacio de Trabajo Confinado (Sandboxing Estricto):**
   - Selección de carpeta mediante el diálogo nativo del sistema operativo (`runtime.OpenDirectoryDialog`).
   - Verificación rigurosa de permisos de escritura reales antes de activar un proyecto.
   - Protección activa contra ataques de *Path Traversal* (evita lecturas o escrituras que utilicen secuencias como `../` para salir de la carpeta autorizada).
-- 🌲 **Explorador de Archivos Jerárquico Integrado:**
+- **Explorador de Archivos Jerárquico Integrado:**
   - Visualización en árbol del directorio del proyecto en un panel lateral interactivo.
   - Exclusión automática de directorios pesados o binarios (`.git`, `node_modules`, `dist`, `.vscode`, `build`, etc.).
   - Botón de acceso directo para abrir la carpeta del proyecto en el explorador de archivos nativo de tu sistema operativo (Windows Explorer, macOS Finder o Linux File Manager).
-- 📐 **Diseño Moderno, Modular y Persistente:**
+- **Diseño Moderno, Modular y Persistente:**
   - Ventana personalizada sin bordes (*frameless*) con controles nativos (minimizar, maximizar/restaurar, cerrar).
   - Memorización persistente del tamaño de la ventana, modo maximizado y visibilidad de los paneles laterales en `%APPDATA%/merlincode/window.json`.
   - Paneles laterales y cajón inferior colapsables y redimensionables con límites ergonómicos de altura y anchura.
-- 💬 **Entorno de Chat y Pair Programming:**
+- **Entorno de Chat y Pair Programming:**
   - Interfaz conversacional limpia con tema oscuro *petrol/slate*.
   - Vista de artefactos generados, historial de sesiones y configuración de modelos.
   - Mensajes de bienvenida contextuales que te guían a seleccionar un proyecto antes de interactuar con el asistente.
 
 ---
 
-## 🚀 Guía de Instalación desde Cero
+## Guía de Instalación desde Cero
 
 Esta guía está redactada paso a paso para personas que **nunca han utilizado Wails** y que **aún no tienen instalado Golang** en su computadora.
 
@@ -133,7 +133,7 @@ Node.js es necesario para compilar el frontend basado en React, TypeScript y Vit
 
 ---
 
-## 💻 Ejecución y Desarrollo
+## Ejecución y Desarrollo
 
 Una vez que tengas Go, Node.js y Wails instalados:
 
@@ -176,7 +176,7 @@ Ambos archivos usan la variable `${env:USERPROFILE}` en la ruta del PATH:
 
 ---
 
-## 🔑 Claves de API de Proveedores de IA
+## Claves de API de Proveedores de IA
 
 Merlin Code se conecta a cuatro proveedores de IA (Anthropic, OpenAI, Google y DeepSeek) usando **tu propia clave de API**, configurable desde la pantalla de Configuración de la aplicación. Es importante entender qué es una clave de API y cómo funciona antes de usarla:
 
@@ -194,7 +194,7 @@ Merlin Code se conecta a cuatro proveedores de IA (Anthropic, OpenAI, Google y D
 
 ---
 
-## 📦 Compilación para Producción
+## Compilación para Producción
 
 Para generar el ejecutable binario redistribuible e independiente (listo para distribuir sin necesidad de tener Go ni Node instalados en la máquina final):
 
@@ -209,7 +209,7 @@ El binario optimizado y empaquetado se generará en la carpeta:
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## Arquitectura del Proyecto
 
 El proyecto está organizado siguiendo principios de **Clean Architecture**, alta cohesión y separación de responsabilidades:
 
@@ -274,7 +274,7 @@ merlincode/
 
 ---
 
-## 🧪 Pruebas Automatizadas
+## Pruebas Automatizadas
 
 El backend incluye una suite de pruebas unitarias para garantizar la confiabilidad del servicio de ventana y la seguridad del sandboxing del espacio de trabajo:
 
@@ -288,7 +288,7 @@ cd frontend && npm run build
 
 ---
 
-## 👨‍💻 Creador
+## Creador
 
 <table align="center">
   <tr>
@@ -299,27 +299,27 @@ cd frontend && npm run build
         <sub><b>José Galdámez</b></sub>
       </a>
       <br />
-      <a href="https://josegaldamez.dev/">🌐 josegaldamez.dev</a> •
-      <a href="https://github.com/JoseGaldamez">🐙 @JoseGaldamez</a>
+      <a href="https://josegaldamez.dev/">josegaldamez.dev</a> •
+      <a href="https://github.com/JoseGaldamez">@JoseGaldamez</a>
     </td>
   </tr>
 </table>
 
 ---
 
-## 🤝 Contribución
+## Contribución
 
 ¡Las contribuciones son bienvenidas! Si deseas colaborar con correcciones de errores, mejoras de rendimiento o nuevas funcionalidades, por favor consulta la [Guía de Contribución](CONTRIBUTING.md) antes de enviar un Pull Request.
 
 ---
 
-## 📄 Términos de Uso y Privacidad
+## Términos de Uso y Privacidad
 
 Para conocer los principios de privacidad local-first, términos de uso del software y directrices de seguridad, consulta [Términos de Uso](TERMS.md).
 
 ---
 
-## ⚖️ Licencia
+## Licencia
 
 Este proyecto está distribuido bajo la licencia **MIT**, la misma licencia con la que nació **OpenCode**. Consulta el archivo [LICENSE](LICENSE) para obtener más información.
 

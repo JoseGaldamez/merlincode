@@ -1,46 +1,46 @@
-# Guía de Contribución a Merlin Code 🧙‍♂️
+# Guía de Contribución a Merlin Code
 
 ¡Gracias por tu interés en contribuir a **Merlin Code**! Este proyecto es de código abierto y agradece enormemente el tiempo y dedicación de la comunidad para hacer de este asistente una herramienta de desarrollo cada vez más rápida, segura y agradable.
 
 ---
 
-## 📋 Tabla de Contenidos
+## Tabla de Contenidos
 
-1. [Código de Conducta](#-código-de-conducta)
-2. [Tipos de Contribuciones](#-tipos-de-contribuciones)
-3. [Entorno de Desarrollo Local](#-entorno-de-desarrollo-local)
-4. [Flujo de Trabajo con Git y GitHub](#-flujo-de-trabajo-con-git-y-github)
-5. [Estándares y Buenas Prácticas](#-estándares-y-buenas-prácticas)
+1. [Código de Conducta](#código-de-conducta)
+2. [Tipos de Contribuciones](#tipos-de-contribuciones)
+3. [Entorno de Desarrollo Local](#entorno-de-desarrollo-local)
+4. [Flujo de Trabajo con Git y GitHub](#flujo-de-trabajo-con-git-y-github)
+5. [Estándares y Buenas Prácticas](#estándares-y-buenas-prácticas)
    - [Backend (Go & Wails)](#backend-go--wails)
    - [Frontend (React, TypeScript & Tailwind)](#frontend-react-typescript--tailwind)
-6. [Pruebas Automatizadas](#-pruebas-automatizadas)
-7. [Reporte de Errores (Bugs)](#-reporte-de-errores-bugs)
-8. [Sugerencia de Nuevas Funcionalidades](#-sugerencia-de-nuevas-funcionalidades)
+6. [Pruebas Automatizadas](#pruebas-automatizadas)
+7. [Reporte de Errores (Bugs)](#reporte-de-errores-bugs)
+8. [Sugerencia de Nuevas Funcionalidades](#sugerencia-de-nuevas-funcionalidades)
 
 ---
 
-## 🤝 Código de Conducta
+## Código de Conducta
 
 Esperamos que todos los participantes y colaboradores traten a los demás con respeto, amabilidad y profesionalismo. No se tolerará ningún tipo de acoso, lenguaje despectivo o comportamiento discriminatorio en issues, pull requests o canales de discusión.
 
 ---
 
-## 💡 Tipos de Contribuciones
+## Tipos de Contribuciones
 
 Las siguientes contribuciones son especialmente valoradas y bienvenidas:
 
-- 🐛 **Corrección de errores (Bug fixes):** Solución de fallos en el explorador de archivos, sincronización de la ventana, o renderizado de mensajes.
-- ⚡ **Mejoras de rendimiento:** Optimización en la lectura del árbol de directorios, reducción de re-renders en React y uso de memoria.
-- 🛡️ **Seguridad del Sandboxing:** Refuerzo de validaciones contra ataques de Path Traversal o fugas de permisos en el espacio de trabajo.
-- 🎨 **Experiencia de Usuario (UI/UX):** Mejoras ergonómicas en la redimensión de paneles, accesibilidad, y temas visuales.
-- 📝 **Documentación:** Correcciones ortográficas, mejoras en guías de instalación y traducción a nuevos idiomas.
+- **Corrección de errores (Bug fixes):** Solución de fallos en el explorador de archivos, sincronización de la ventana, o renderizado de mensajes.
+- **Mejoras de rendimiento:** Optimización en la lectura del árbol de directorios, reducción de re-renders en React y uso de memoria.
+- **Seguridad del Sandboxing:** Refuerzo de validaciones contra ataques de Path Traversal o fugas de permisos en el espacio de trabajo.
+- **Experiencia de Usuario (UI/UX):** Mejoras ergonómicas en la redimensión de paneles, accesibilidad, y temas visuales.
+- **Documentación:** Correcciones ortográficas, mejoras en guías de instalación y traducción a nuevos idiomas.
 
 > [!NOTE]
 > Para cambios estructurales grandes o nuevas características centrales de producto, por favor abre primero un **Issue** para debatir la propuesta con el equipo antes de comenzar a programar.
 
 ---
 
-## 💻 Entorno de Desarrollo Local
+## Entorno de Desarrollo Local
 
 Asegúrate de contar con los requisitos instalados tal como se detalla en el [README.md](README.md):
 - **Go 1.26.9**
@@ -68,7 +68,7 @@ Cualquier cambio en archivos `.go` o en la carpeta `frontend/src` recargará aut
 
 ---
 
-## 🔄 Flujo de Trabajo con Git y GitHub
+## Flujo de Trabajo con Git y GitHub
 
 1. **Haz un Fork del repositorio:**  
    Haz clic en el botón **Fork** en [https://github.com/JoseGaldamez/merlincode](https://github.com/JoseGaldamez/merlincode).
@@ -104,7 +104,7 @@ Cualquier cambio en archivos `.go` o en la carpeta `frontend/src` recargará aut
 
 ---
 
-## 📐 Estándares y Buenas Prácticas
+## Estándares y Buenas Prácticas
 
 ### Backend (Go & Wails)
 - **Arquitectura Limpia:**
@@ -113,7 +113,7 @@ Cualquier cambio en archivos `.go` o en la carpeta `frontend/src` recargará aut
   - `app.go` debe permanecer como una fachada delgada (Facade) exponiendo métodos al runtime de Wails.
 - **Seguridad en primer lugar:**  
   Cualquier operación que interactúe con el sistema de archivos del usuario **DEBE** pasar por `workspace.ValidatePathInProject` para asegurar que no se acceda fuera de la carpeta autorizada.
-- **Concurrencia segura:** Utiliza `sync.RWMutex` cuando複数のgoroutines puedan acceder o mutar el estado persistente.
+- **Concurrencia segura:** Utiliza `sync.RWMutex` cuando múltiples goroutines puedan acceder o mutar el estado persistente.
 - **Formateo:** Ejecuta `go fmt ./...` antes de hacer commit.
 
 ### Frontend (React, TypeScript & Tailwind)
@@ -125,7 +125,7 @@ Cualquier cambio en archivos `.go` o en la carpeta `frontend/src` recargará aut
 
 ---
 
-## 🧪 Pruebas Automatizadas
+## Pruebas Automatizadas
 
 Antes de enviar un Pull Request, confirma que todas las pruebas pasen y que el proyecto compile limpiamente:
 
@@ -152,7 +152,7 @@ wails build -clean
 
 ---
 
-## 🐞 Reporte de Errores (Bugs)
+## Reporte de Errores (Bugs)
 
 Si encuentras un error o comportamiento inesperado:
 1. Revisa los [Issues existentes](https://github.com/JoseGaldamez/merlincode/issues) para verificar si ya ha sido reportado.
@@ -164,11 +164,11 @@ Si encuentras un error o comportamiento inesperado:
 
 ---
 
-## 💡 Sugerencia de Nuevas Funcionalidades
+## Sugerencia de Nuevas Funcionalidades
 
 ¿Tienes una idea para hacer a Merlin Code aún mejor?
 1. Abre un Issue con la etiqueta `enhancement`.
 2. Explica el caso de uso y por qué beneficiaría a los desarrolladores.
 3. Comparte mockups o ejemplos conceptuales si es posible.
 
-¡Gracias por ser parte del crecimiento de **Merlin Code**! 🚀
+¡Gracias por ser parte del crecimiento de **Merlin Code**!
