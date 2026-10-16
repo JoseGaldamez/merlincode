@@ -24,9 +24,9 @@ export const ArtifactItem: React.FC<ArtifactItemProps> = ({
 
   return (
     <div
-      className={`group p-2.5 rounded bg-[#13191d] border transition-all cursor-pointer ${
+      className={`group p-2.5 rounded bg-surface-card border transition-all cursor-pointer ${
         isSelected
-          ? 'border-accent-primary bg-[#162329]'
+          ? 'border-accent-primary bg-accent-petrol'
           : 'border-border-subtle hover:border-border-petrol'
       }`}
       onClick={() => onSelect?.(artifact.id)}
@@ -45,7 +45,7 @@ export const ArtifactItem: React.FC<ArtifactItemProps> = ({
         {artifact.content && (
           <button
             type="button"
-            className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#1b252a] rounded transition-colors cursor-pointer"
+            className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-modal rounded transition-colors cursor-pointer"
             onClick={handleCopy}
             title="Copiar contenido"
           >
@@ -60,7 +60,7 @@ export const ArtifactItem: React.FC<ArtifactItemProps> = ({
 
       <div className="flex items-center gap-2 text-[10px] font-mono text-content-dim">
         {artifact.language && (
-          <span className="px-1.5 py-0.5 rounded bg-[#1a2327] text-content-muted font-medium">
+          <span className="px-1.5 py-0.5 rounded bg-surface-modal text-content-muted font-medium">
             {artifact.language.toUpperCase()}
           </span>
         )}

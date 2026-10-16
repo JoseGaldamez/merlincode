@@ -36,8 +36,8 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({
       <div
         className={`flex items-center gap-1.5 py-1 px-2 rounded text-xs cursor-pointer select-none transition-colors border ${
           isSelected
-            ? 'bg-[#18262c] text-accent-primary border-border-petrol'
-            : 'text-content-muted hover:bg-[#131a1e] hover:text-content-headline border-transparent'
+            ? 'bg-surface-selected text-accent-primary border-border-petrol'
+            : 'text-content-muted hover:bg-surface-card hover:text-content-headline border-transparent'
         }`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => {

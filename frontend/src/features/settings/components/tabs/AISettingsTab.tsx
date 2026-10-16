@@ -231,12 +231,12 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                 onClick={() => onUpdate('modelProvider', provider.id)}
                 className={`relative flex flex-col justify-between p-3.5 rounded-xl border text-left transition-colors cursor-pointer min-h-[102px] ${
                   isSelected
-                    ? 'border-accent-primary bg-[#101719]'
-                    : 'border-border-subtle/70 bg-[#0d1214] hover:border-border-petrol/60 hover:bg-[#101618]'
+                    ? 'border-accent-primary bg-surface-neutral'
+                    : 'border-border-subtle/70 bg-surface-lowest hover:border-border-petrol/60 hover:bg-surface-neutral'
                 }`}
               >
                 <div className="flex items-center justify-between w-full">
-                  <div className="w-10 h-10 rounded-lg bg-[#141b1f] border border-border-subtle/50 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-surface-card border border-border-subtle/50 flex items-center justify-center shrink-0">
                     {renderOfficialLogo(provider.id, 22)}
                   </div>
 
@@ -331,7 +331,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             <div className="md:col-span-7 flex flex-col gap-2">
               {currentStatus.configured ? (
                 <>
-                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-surface-lowest border border-border-subtle/60">
                     <div className="flex items-center gap-2 min-w-0">
                       {currentStatus.verified ? (
                         <IconCheck size={14} className="text-emerald-400 shrink-0" />
@@ -361,7 +361,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                   <div className="relative">
                     <input
                       type={showApiKey ? 'text' : 'password'}
-                      className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
+                      className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
                       value={draftKey}
                       onChange={(e) => {
                         setDraftKey(e.target.value);
@@ -442,7 +442,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
 
             <div className="md:col-span-7 flex flex-col gap-2">
               {currentStatus.hasAdminKey ? (
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-surface-lowest border border-border-subtle/60">
                   <div className="flex items-center gap-2 min-w-0">
                     <IconShield size={14} className="text-accent-primary/90 shrink-0" />
                     <span className="text-xs font-mono text-content-headline truncate">
@@ -465,7 +465,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                   <div className="relative">
                     <input
                       type={showAdminKey ? 'text' : 'password'}
-                      className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
+                      className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
                       value={draftAdminKey}
                       onChange={(e) => {
                         setDraftAdminKey(e.target.value);
@@ -553,7 +553,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
               <div className="md:col-span-7 flex flex-col gap-2">
                 <input
                   type="text"
-                  className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2.5 text-sm text-content-headline outline-none transition-colors"
+                  className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2.5 text-sm text-content-headline outline-none transition-colors"
                   value={testMessage}
                   onChange={(e) => setTestMessage(e.target.value)}
                   placeholder="Escribe un mensaje para probar la conexión..."
@@ -587,7 +587,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                       <span>{testMessageResult.message}</span>
                     </div>
                     {testMessageResult.responseText && (
-                      <div className="p-3 rounded-lg bg-[#0d1214] border border-border-subtle/60">
+                      <div className="p-3 rounded-lg bg-surface-lowest border border-border-subtle/60">
                         {testMessageResult.model && (
                           <p className="text-[10px] font-mono text-content-dim mb-1.5">
                             {testMessageResult.model}
@@ -613,7 +613,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
               {currentUsage?.available ? 'Consumo & Costo Real de la Cuenta' : 'Consumo de Tokens & Costo Estimado (Hoy)'}
             </h3>
-            <span className="text-[11px] font-mono text-content-dim bg-[#12181a] px-2.5 py-0.5 rounded border border-border-subtle/50">
+            <span className="text-[11px] font-mono text-content-dim bg-surface-neutral px-2.5 py-0.5 rounded border border-border-subtle/50">
               {new Date().toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
             </span>
           </div>
@@ -637,7 +637,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
           /* Vista de saldo real (p.ej. DeepSeek): la API solo expone saldo prepagado de la cuenta,
              no un desglose de tokens por día, así que complementamos con la estimación local */
           <div className="flex flex-col gap-3">
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60">
               <div className="flex items-center gap-2 mb-1.5">
                 <IconCheck size={13} className="text-emerald-400 shrink-0" />
                 <span className="text-xs text-content-dim font-medium">Saldo Real de la Cuenta ({currentProvider.name})</span>
@@ -651,7 +651,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                 estimación local basada en las peticiones realizadas desde esta app.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+                <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
                   <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy (estimado)</span>
                   <div className="mt-2.5 flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold font-mono text-content-headline">
@@ -665,7 +665,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+                <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-content-dim font-medium">Gasto Estimado (Hoy)</span>
                     <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
@@ -687,7 +687,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
         ) : currentUsage?.available ? (
           /* Vista de uso real por tokens + costo (p.ej. Anthropic con Admin Key) */
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
               <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy (real)</span>
               <div className="mt-2.5 flex items-baseline gap-1.5">
                 <span className="text-2xl font-bold font-mono text-content-headline">
@@ -701,7 +701,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-content-dim font-medium">Costo Real (Hoy)</span>
                 <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
@@ -722,7 +722,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
           /* Fallback: estimación local basada en telemetría de la app y tarifas fijas */
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Card 1: Tokens Totales */}
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
               <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy</span>
               <div className="mt-2.5 flex items-baseline gap-1.5">
                 <span className="text-2xl font-bold font-mono text-content-headline">
@@ -737,7 +737,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             </div>
 
             {/* Card 2: Costo Estimado en Dinero ($ USD) */}
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-content-dim font-medium">Gasto Estimado (Hoy)</span>
                 <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
@@ -755,10 +755,10 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             </div>
 
             {/* Card 3: Distribución de Tráfico (Prompt vs Salida) */}
-            <div className="p-4 rounded-xl bg-[#0c1113] border border-border-subtle/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
               <span className="text-xs text-content-dim font-medium">Distribución de Tráfico</span>
               <div className="mt-3">
-                <div className="w-full h-2.5 bg-[#151c20] rounded-full overflow-hidden flex">
+                <div className="w-full h-2.5 bg-surface-hover rounded-full overflow-hidden flex">
                   <div
                     className="bg-accent-primary h-full transition-all duration-300"
                     style={{ width: `${promptPct}%` }}
@@ -815,7 +815,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                   onChange={(e) => onUpdate('streaming', e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-[#1b2328] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-[#0b0e10] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
+                <div className="w-11 h-6 bg-surface-container peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-canvas after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
               </label>
             </div>
           </div>

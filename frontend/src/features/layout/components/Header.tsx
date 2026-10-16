@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectProvider,
 }) => {
   return (
-    <header className="wails-drag h-10 bg-[#0f1416] border-b border-border-subtle flex items-center justify-between select-none shrink-0 z-30">
+    <header className="wails-drag h-10 bg-surface-neutral border-b border-border-subtle flex items-center justify-between select-none shrink-0 z-30">
       {/* Logotipo, Selector de proyectos y Selector de proveedor de IA */}
       <div className="flex items-center gap-2 pl-3.5 h-full">
         <div className="wails-no-drag flex items-center mr-1">
@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Cuadro de búsqueda para encontrar palabras en las sesiones */}
       <div className="wails-no-drag flex-1 flex justify-center max-w-sm mx-4">
-        <div className="relative flex items-center w-full bg-[#13191d] border border-border-subtle rounded px-2.5 py-1 focus-within:border-accent-primary transition-colors">
+        <div className="relative flex items-center w-full bg-surface-card border border-border-subtle rounded px-2.5 py-1 focus-within:border-accent-primary transition-colors">
           <IconSearch size={13} className="text-content-dim mr-2 shrink-0" />
           <input
             type="text"
@@ -82,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="wails-no-drag flex items-center h-full">
         <button
           type="button"
-          className="p-1.5 mr-1 text-content-muted hover:text-accent-primary hover:bg-[#182328] rounded transition-colors cursor-pointer"
+          className="p-1.5 mr-1 text-content-muted hover:text-accent-primary hover:bg-surface-hover rounded transition-colors cursor-pointer"
           onClick={onOpenSettings}
           title="Configuración"
           aria-label="Abrir configuración"

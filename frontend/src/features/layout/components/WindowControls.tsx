@@ -9,7 +9,7 @@ export const WindowControls: React.FC = () => {
     <div className="flex items-center h-full">
       <button
         type="button"
-        className="h-full px-3.5 flex items-center justify-center text-content-muted hover:text-content-headline hover:bg-[#1a2429] transition-colors cursor-pointer"
+        className="h-full px-3.5 flex items-center justify-center text-content-muted hover:text-content-headline hover:bg-surface-hover transition-colors cursor-pointer"
         onClick={minimize}
         title="Minimizar"
         aria-label="Minimizar ventana"
@@ -19,7 +19,7 @@ export const WindowControls: React.FC = () => {
 
       <button
         type="button"
-        className="h-full px-3.5 flex items-center justify-center text-content-muted hover:text-content-headline hover:bg-[#1a2429] transition-colors cursor-pointer"
+        className="h-full px-3.5 flex items-center justify-center text-content-muted hover:text-content-headline hover:bg-surface-hover transition-colors cursor-pointer"
         onClick={toggleMaximize}
         title={isMaximized ? 'Restaurar' : 'Maximizar'}
         aria-label={isMaximized ? 'Restaurar ventana' : 'Maximizar ventana'}

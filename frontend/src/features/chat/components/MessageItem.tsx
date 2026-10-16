@@ -123,7 +123,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               </>
             ) : (
               <>
-                <div className="w-5 h-5 rounded flex items-center justify-center bg-[#1f353d] text-accent-primary text-[10px] font-mono font-bold border border-border-petrol">
+                <div className="w-5 h-5 rounded flex items-center justify-center bg-surface-selected text-accent-primary text-[10px] font-mono font-bold border border-border-petrol">
                   <span>TU</span>
                 </div>
                 <span className="text-xs font-mono font-bold text-content-dim tracking-wider">
@@ -150,7 +150,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
           className={`text-md leading-relaxed transition-all ${
             isAssistant
               ? 'w-full py-1 px-1 text-content-body'
-              : 'p-3.5 md:p-4 rounded-2xl rounded-tr-sm bg-[#16252c] border border-[#233d47] text-[#f1f5f9] text-left max-w-full'
+              : 'p-3.5 md:p-4 rounded-2xl rounded-tr-sm bg-surface-selected border border-border-petrol text-content-headline text-left max-w-full'
           }`}
         >
           {message.status === 'error' ? (
@@ -177,7 +177,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               <button
                 type="button"
                 onClick={onOpenFolder}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary-hover text-[#0b0e10] font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-md"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-md"
               >
                 <IconFolder size={15} />
                 <span>{message.action.label}</span>
@@ -208,7 +208,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all cursor-pointer border ${
                     copied
                       ? 'bg-accent-primary/15 border-accent-primary/50 text-accent-primary'
-                      : 'bg-[#12191d] hover:bg-[#1a252b] border-border-subtle/50 text-content-dim hover:text-content-body'
+                      : 'bg-surface-card hover:bg-surface-hover border-border-subtle/50 text-content-dim hover:text-content-body'
                   }`}
                   title={copied ? 'Copiado al portapapeles' : 'Copiar respuesta completa'}
                   aria-label="Copiar respuesta completa"
@@ -223,7 +223,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
                   className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-all cursor-pointer border ${
                     feedback === 'like'
                       ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-400'
-                      : 'bg-[#12191d] hover:bg-[#1a252b] border-border-subtle/50 text-content-dim hover:text-content-body'
+                      : 'bg-surface-card hover:bg-surface-hover border-border-subtle/50 text-content-dim hover:text-content-body'
                   }`}
                   title="Me gusta"
                   aria-label="Me gusta"
@@ -237,7 +237,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
                   className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-all cursor-pointer border ${
                     feedback === 'dislike'
                       ? 'bg-red-950/60 border-red-500/50 text-red-400'
-                      : 'bg-[#12191d] hover:bg-[#1a252b] border-border-subtle/50 text-content-dim hover:text-content-body'
+                      : 'bg-surface-card hover:bg-surface-hover border-border-subtle/50 text-content-dim hover:text-content-body'
                   }`}
                   title="No me gusta"
                   aria-label="No me gusta"
@@ -248,7 +248,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
 
               {/* Conteo de tokens de entrada y salida */}
               {(message.tokensPrompt != null || message.tokensCompletion != null) && (
-                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-content-dim/80 bg-[#10171a] px-2.5 py-1 rounded-md border border-border-subtle/40 select-none">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-content-dim/80 bg-surface-neutral px-2.5 py-1 rounded-md border border-border-subtle/40 select-none">
                   <span className="text-content-dim/50">Tokens:</span>
                   <span className="text-content-headline font-semibold">{message.tokensPrompt ?? 0}</span>
                   <span className="text-content-dim/60">entrada</span>

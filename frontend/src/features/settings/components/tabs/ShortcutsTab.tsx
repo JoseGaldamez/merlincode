@@ -7,6 +7,9 @@ export const ShortcutsTab: React.FC = () => {
     { label: 'Buscar en el historial de sesiones', key: 'Ctrl + F' },
     { label: 'Abrir Configuración', key: 'Ctrl + ,' },
     { label: 'Cerrar diálogo o modal', key: 'Esc' },
+    { label: 'Aumentar interfaz (Windows)', key: 'Ctrl + +' },
+    { label: 'Reducir interfaz (Windows)', key: 'Ctrl + −' },
+    { label: 'Restablecer tamaño de interfaz (Windows)', key: 'Ctrl + 0' },
   ];
 
   return (
@@ -28,7 +31,7 @@ export const ShortcutsTab: React.FC = () => {
               className="py-3.5 flex items-center justify-between gap-4"
             >
               <span className="text-sm font-medium text-content-body">{sc.label}</span>
-              <kbd className="px-3 py-1.5 rounded-md bg-[#141d22] border border-[#21353f] text-accent-primary text-xs font-mono font-semibold shadow-sm">
+              <kbd className="px-3 py-1.5 rounded-md bg-surface-card border border-border-petrol text-accent-primary text-xs font-mono font-semibold shadow-sm">
                 {sc.key}
               </kbd>
             </div>

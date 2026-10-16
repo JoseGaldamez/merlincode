@@ -27,8 +27,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ settings, onUpdate }) =>
             onClick={() => onUpdate('theme', 'dark-flat')}
             className={`p-4 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
               settings.theme === 'dark-flat'
-                ? 'border-accent-primary bg-[#132228] shadow-sm'
-                : 'border-border-subtle hover:border-border-petrol bg-[#0d1214]'
+                ? 'border-accent-primary bg-surface-selected shadow-sm'
+                : 'border-border-subtle hover:border-border-petrol bg-surface-lowest'
             }`}
           >
             <div className="flex items-center justify-between mb-2.5">
@@ -58,8 +58,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ settings, onUpdate }) =>
             onClick={() => onUpdate('theme', 'deep-black')}
             className={`p-4 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
               settings.theme === 'deep-black'
-                ? 'border-accent-primary bg-[#132228] shadow-sm'
-                : 'border-border-subtle hover:border-border-petrol bg-[#0d1214]'
+                ? 'border-accent-primary bg-surface-selected shadow-sm'
+                : 'border-border-subtle hover:border-border-petrol bg-surface-lowest'
             }`}
           >
             <div className="flex items-center justify-between mb-2.5">
@@ -108,7 +108,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ settings, onUpdate }) =>
             </div>
             <div className="w-full md:w-80 shrink-0">
               <select
-                className="w-full bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2 text-sm text-content-headline outline-none transition-colors cursor-pointer"
+                className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2 text-sm text-content-headline outline-none transition-colors cursor-pointer"
                 value={settings.language}
                 onChange={(e) => onUpdate('language', e.target.value)}
               >
@@ -141,7 +141,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ settings, onUpdate }) =>
                 Persistir automáticamente paneles colapsados o expandidos entre inicios.
               </span>
             </div>
-            <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#152329] text-accent-primary font-medium shrink-0 border border-border-petrol/50">
+            <span className="text-xs font-mono px-2.5 py-1 rounded bg-surface-selected text-accent-primary font-medium shrink-0 border border-border-petrol/50">
               Activo
             </span>
           </div>
@@ -155,7 +155,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ settings, onUpdate }) =>
                 Almacena el ancho, alto y modo maximizado al redimensionar en tiempo real.
               </span>
             </div>
-            <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#152329] text-accent-primary font-medium shrink-0 border border-border-petrol/50">
+            <span className="text-xs font-mono px-2.5 py-1 rounded bg-surface-selected text-accent-primary font-medium shrink-0 border border-border-petrol/50">
               Activo
             </span>
           </div>

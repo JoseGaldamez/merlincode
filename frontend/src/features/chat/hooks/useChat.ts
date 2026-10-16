@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Message, AgentTelemetry, Project, ChatStreamEvent, ToolActivityEntry } from '../../../types';
 import {
   StartChatStream,
@@ -56,6 +56,21 @@ export function useChat({
     setStreamingStatusText('');
   }, []);
 
+  const projectKey = JSON.stringify([activeProject?.id || '', activeProject?.path || '']);
+  useLayoutEffect(() => {
+    clearMessages();
+    setTelemetry((previous) => ({ ...previous, status: 'idle', tokensPrompt: 0, tokensCompletion: 0, latencyMs: 0, activeFile: '' }));
+    return () => {
+      const streamId = currentStreamingIdRef.current;
+      currentStreamingIdRef.current = null;
+      if (streamId) {
+        CancelChatStream(streamId).catch((err) => {
+          console.error('[Merlin Chat] Error cancelando stream al cambiar de proyecto:', err);
+        });
+      }
+    };
+  }, [projectKey, clearMessages]);
+
   // Cargar mensajes persistidos desde SQLite al cambiar de sesión activa
   useEffect(() => {
     if (!activeSessionId) {
@@ -75,6 +90,7 @@ export function useChat({
     }
 
     let isSubscribed = true;
+    setMessages([]);
     GetSessionMessages(activeSessionId)
       .then((records) => {
         if (!isSubscribed || currentStreamingIdRef.current) return;
@@ -109,12 +125,12 @@ export function useChat({
     return () => {
       isSubscribed = false;
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, projectKey]);
 
   // Escuchar eventos en streaming emitidos por el backend de Go
   useEffect(() => {
     const unsubscribe = EventsOn('chat:stream', (event: ChatStreamEvent) => {
-      if (!event || !event.messageId) return;
+      if (!event || event.messageId !== currentStreamingIdRef.current) return;
 
       if (event.type === 'status') {
         if (event.statusText) {
@@ -316,36 +332,23 @@ export function useChat({
   }, [onRefreshSessions]);
 
   const cancelStream = useCallback(async () => {
-    if (currentStreamingIdRef.current) {
-      const streamId = currentStreamingIdRef.current;
-      const elapsedSec = Math.max(1, Math.round((performance.now() - streamStartTimeRef.current) / 1000));
-      console.log(`[Merlin Chat] Cancelando stream: ${streamId}`);
-      try {
-        await CancelChatStream(streamId);
-      } catch (err) {
-        console.error(`[Merlin Chat] Error invocando CancelChatStream:`, err);
-      }
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === streamId
-            ? {
-                ...m,
-                content: m.content ? `${m.content}\n\n*(Generación detenida)*` : '*(Generación detenida)*',
-                status: 'done',
-                durationSeconds: elapsedSec,
-              }
-            : m
-        )
-      );
-      setIsLoading(false);
-      setStreamingStatusText('');
-      currentStreamingIdRef.current = null;
-      currentStreamingSessionIdRef.current = null;
-      skipNextLoadSessionIdRef.current = null;
-      if (onRefreshSessions) {
-        onRefreshSessions();
-      }
+    const streamId = currentStreamingIdRef.current;
+    if (!streamId) return;
+    const elapsedSec = Math.max(1, Math.round((performance.now() - streamStartTimeRef.current) / 1000));
+    currentStreamingIdRef.current = null;
+    currentStreamingSessionIdRef.current = null;
+    skipNextLoadSessionIdRef.current = null;
+    setMessages((previous) => previous.map((message) => message.id === streamId
+      ? { ...message, content: message.content ? `${message.content}\n\n*(Generación detenida)*` : '*(Generación detenida)*', status: 'done', durationSeconds: elapsedSec }
+      : message));
+    setIsLoading(false);
+    setStreamingStatusText('');
+    try {
+      await CancelChatStream(streamId);
+    } catch (err) {
+      console.error('[Merlin Chat] Error invocando CancelChatStream:', err);
     }
+    onRefreshSessions?.();
   }, [onRefreshSessions]);
 
   const sendMessage = useCallback(
@@ -448,6 +451,7 @@ export function useChat({
           history: historyToSend,
         })
       ).catch((err: any) => {
+        if (currentStreamingIdRef.current !== asstMessageId) return;
         const elapsed = Math.round(performance.now() - streamStartTimeRef.current);
         const errMsg = err?.message || err || 'No se pudo conectar con el backend de IA.';
         console.error(`[Merlin Chat] Error al iniciar stream (${elapsed}ms):`, errMsg);

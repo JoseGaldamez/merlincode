@@ -51,7 +51,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 onCloseModal();
                 onOpenFolder();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary-hover text-[#0b0e10] font-semibold text-sm rounded-lg transition-colors cursor-pointer shadow-sm shrink-0 self-start sm:self-auto"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-sm rounded-lg transition-colors cursor-pointer shadow-sm shrink-0 self-start sm:self-auto"
             >
               <IconFolderOpen size={16} />
               <span>Abrir Carpeta...</span>
@@ -72,7 +72,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 <div
                   key={proj.id}
                   className={`py-3.5 px-3 flex items-center justify-between gap-4 transition-colors rounded-lg ${
-                    isCurrent ? 'bg-[#152329]/60' : 'hover:bg-[#12181b]/60'
+                    isCurrent ? 'bg-surface-selected/60' : 'hover:bg-surface-neutral/60'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -86,7 +86,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                           {proj.name}
                         </span>
                         {isCurrent && (
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#162931] text-accent-primary border border-border-petrol/60">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface-selected text-accent-primary border border-border-petrol/60">
                             Activo
                           </span>
                         )}
@@ -106,7 +106,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     {!isCurrent && (
                       <button
                         type="button"
-                        className="text-sm text-accent-primary hover:text-accent-primary-hover font-medium px-2.5 py-1 rounded hover:bg-[#152329] transition-colors cursor-pointer"
+                        className="text-sm text-accent-primary hover:text-accent-primary-hover font-medium px-2.5 py-1 rounded hover:bg-surface-selected transition-colors cursor-pointer"
                         onClick={() => onSelectProject(proj.id)}
                       >
                         Activar
@@ -137,12 +137,12 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               placeholder="Nombre para un nuevo espacio..."
-              className="flex-1 bg-[#0d1214] border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2 text-sm text-content-headline font-mono outline-none transition-colors"
+              className="flex-1 bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2 text-sm text-content-headline font-mono outline-none transition-colors"
             />
             <button
               type="submit"
               disabled={!newProjectName.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-[#162329] hover:bg-[#1e323b] disabled:opacity-40 text-accent-primary border border-border-petrol text-sm font-mono font-medium rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-petrol hover:bg-accent-petrol-hover disabled:opacity-40 text-accent-primary border border-border-petrol text-sm font-mono font-medium rounded-lg transition-colors cursor-pointer"
             >
               <IconPlus size={14} />
               <span>Añadir</span>

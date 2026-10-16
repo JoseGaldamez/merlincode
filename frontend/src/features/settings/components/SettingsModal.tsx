@@ -90,13 +90,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-[#0f1416] border border-border-subtle rounded-xl w-full max-w-[1080px] h-[86vh] max-h-[820px] min-h-[560px] flex flex-col shadow-2xl overflow-hidden animate-scaleIn select-none"
+        className="bg-surface-neutral border border-border-subtle rounded-xl w-full max-w-[1080px] h-[86vh] max-h-[820px] min-h-[560px] flex flex-col shadow-2xl overflow-hidden animate-scaleIn select-none"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         {/* Modal Top Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle/50 bg-[#0c1012] shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle/50 bg-surface-lowest shrink-0">
           <div className="flex items-center gap-3 text-accent-primary">
             <IconSettings size={18} />
             <h3 className="text-sm font-semibold text-content-headline tracking-tight font-sans">
@@ -105,7 +105,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
           <button
             type="button"
-            className="p-1.5 text-content-dim hover:text-content-headline hover:bg-[#152227] rounded-md transition-colors cursor-pointer"
+            className="p-1.5 text-content-dim hover:text-content-headline hover:bg-surface-hover rounded-md transition-colors cursor-pointer"
             onClick={onClose}
             title="Cerrar configuración"
             aria-label="Cerrar"
@@ -124,7 +124,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           />
 
           {/* Right Content Panel */}
-          <main className="flex-1 flex flex-col bg-[#0f1416] overflow-y-auto p-8 md:p-10 min-w-0">
+          <main className="flex-1 flex flex-col bg-surface-neutral overflow-y-auto p-8 md:p-10 min-w-0">
             <div className="mb-8 pb-4 border-b border-border-subtle/40 shrink-0">
               <h2 className="text-xl font-bold text-content-headline mb-1.5 font-sans">
                 {currentCategoryObj.label}
@@ -167,7 +167,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Modal Bottom Footer */}
-        <div className="flex items-center justify-between px-8 py-4 border-t border-border-subtle/50 bg-[#0c1012] shrink-0">
+        <div className="flex items-center justify-between px-8 py-4 border-t border-border-subtle/50 bg-surface-lowest shrink-0">
           <div className="flex items-center">
             {savedSuccess && (
               <span className="flex items-center gap-2 text-sm text-status-success font-medium animate-fadeIn">
@@ -186,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
             <button
               type="button"
-              className="flex items-center gap-2 px-5 py-2 rounded-md bg-accent-primary hover:bg-accent-primary-hover text-[#0b0e10] font-semibold text-sm transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-5 py-2 rounded-md bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-sm transition-colors cursor-pointer shadow-sm"
               onClick={handleSave}
             >
               <IconCheck size={16} />
