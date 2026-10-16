@@ -26,10 +26,10 @@ export const ToolActivityPanel: React.FC<ToolActivityPanelProps> = ({ activity }
   if (!activity || activity.length === 0) return null;
 
   return (
-    <div className="w-full mb-2.5 rounded-lg border border-border-petrol bg-[#10171b] overflow-hidden">
+    <div className="w-full mb-2.5 rounded-lg border border-border-petrol bg-surface-neutral overflow-hidden">
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-content-muted hover:text-content-body hover:bg-[#152227] transition-colors cursor-pointer text-left"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-content-muted hover:text-content-body hover:bg-surface-hover transition-colors cursor-pointer text-left"
         onClick={() => setIsOpen((prev) => !prev)}
       >
         {isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
@@ -42,7 +42,7 @@ export const ToolActivityPanel: React.FC<ToolActivityPanelProps> = ({ activity }
           {activity.map((entry) => (
             <div
               key={entry.toolCallId}
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-mono bg-[#0a0f12]"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-mono bg-surface-lowest"
             >
               <IconFile size={13} className="text-content-dim shrink-0" />
               <span className="text-content-body font-semibold shrink-0">{entry.toolName}</span>

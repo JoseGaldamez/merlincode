@@ -41,7 +41,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({ request, onA
   const hasEdits = editedContent !== (request.newContent || '');
 
   return (
-    <div className="mt-3 rounded-lg border border-amber-500/40 bg-[#12191d] overflow-hidden">
+    <div className="mt-3 rounded-lg border border-amber-500/40 bg-surface-card overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-amber-950/20 border-b border-amber-500/30">
         <IconFile size={14} className="text-amber-400" />
         <span className="text-xs font-mono font-semibold text-amber-300">{request.path}</span>
@@ -66,7 +66,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({ request, onA
           value={editedContent}
           onChange={(e) => setEditedContent(e.target.value)}
           spellCheck={false}
-          className="w-full h-64 resize-none bg-[#0b0e10] text-content-body font-mono text-[11px] leading-relaxed p-3 outline-none"
+          className="w-full h-64 resize-none bg-canvas text-content-body font-mono text-[11px] leading-relaxed p-3 outline-none"
         />
       ) : (
         <div className="max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed">
@@ -99,7 +99,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({ request, onA
           type="button"
           disabled={isExpired}
           onClick={() => onApprove(editedContent)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#0b0e10] font-semibold text-xs rounded-md transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-canvas font-semibold text-xs rounded-md transition-colors cursor-pointer"
         >
           <IconCheck size={13} />
           <span>{hasEdits ? 'Aprobar con cambios' : 'Aprobar'}</span>
@@ -107,7 +107,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({ request, onA
         <button
           type="button"
           onClick={onReject}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a252b] hover:bg-[#233038] border border-border-subtle/50 text-content-body font-semibold text-xs rounded-md transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover hover:bg-surface-hover border border-border-subtle/50 text-content-body font-semibold text-xs rounded-md transition-colors cursor-pointer"
         >
           <IconClose size={13} />
           <span>Rechazar</span>

@@ -37,6 +37,7 @@ func main() {
 			application,
 		},
 		Windows: &windows.Options{
+			IsZoomControlEnabled: true,
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			DisableWindowIcon:    false,

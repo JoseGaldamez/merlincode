@@ -38,7 +38,7 @@ export const EmptyChatState: React.FC<EmptyChatStateProps> = ({
               <button
                 type="button"
                 onClick={onOpenFolder}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-accent-primary hover:bg-accent-primary-hover text-[#0b0e10] font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-sm"
               >
                 <IconFolder size={15} />
                 <span>Seleccionar carpeta de proyecto</span>

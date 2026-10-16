@@ -89,13 +89,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <span className="text-[11px] font-semibold tracking-wider text-content-dim font-mono">
                 SESIONES
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1c282e] text-accent-primary font-medium">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-selected text-accent-primary font-medium">
                 {sessions.length}
               </span>
             </div>
             <button
               type="button"
-              className="p-1 text-content-dim hover:text-content-headline hover:bg-[#192226] rounded transition-colors cursor-pointer"
+              className="p-1 text-content-dim hover:text-content-headline hover:bg-surface-hover rounded transition-colors cursor-pointer"
               onClick={onToggle}
               title="Colapsar panel"
               aria-label="Colapsar panel izquierdo"
@@ -108,7 +108,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <div className="p-3 pb-2 shrink-0">
             <button
               type="button"
-              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-accent-primary hover:bg-accent-primary-hover text-[#0b0e10] font-semibold text-xs rounded transition-colors cursor-pointer shadow-sm"
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-xs rounded transition-colors cursor-pointer shadow-sm"
               onClick={onNewSession}
             >
               <IconPlus size={14} />

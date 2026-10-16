@@ -19,8 +19,8 @@ export const SessionItem: React.FC<SessionItemProps> = ({
     <li
       className={`group flex items-center justify-between px-2.5 py-2 rounded text-xs transition-colors cursor-pointer border ${
         isActive
-          ? 'bg-[#18262c] text-accent-primary border-border-petrol font-medium'
-          : 'text-content-muted hover:bg-[#151c20] hover:text-content-body border-transparent'
+          ? 'bg-surface-selected text-accent-primary border-border-petrol font-medium'
+          : 'text-content-muted hover:bg-surface-hover hover:text-content-body border-transparent'
       }`}
       onClick={() => onSelect(session.id)}
     >

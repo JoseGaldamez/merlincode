@@ -31,7 +31,7 @@ export const PrivacyTab: React.FC<PrivacyTabProps> = ({ settings, onUpdate }) =>
               </span>
             </div>
             <div className="shrink-0">
-              <code className="inline-block font-mono text-xs px-3 py-1.5 bg-[#0d1214] border border-border-subtle text-accent-primary rounded-lg">
+              <code className="inline-block font-mono text-xs px-3 py-1.5 bg-surface-lowest border border-border-subtle text-accent-primary rounded-lg">
                 %APPDATA%/merlincode/window.json
               </code>
             </div>
@@ -54,7 +54,7 @@ export const PrivacyTab: React.FC<PrivacyTabProps> = ({ settings, onUpdate }) =>
                 onChange={(e) => onUpdate('autoSaveSessions', e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-[#1b2328] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-[#0b0e10] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
+              <div className="w-11 h-6 bg-surface-container peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-canvas after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
             </label>
           </div>
 
@@ -75,7 +75,7 @@ export const PrivacyTab: React.FC<PrivacyTabProps> = ({ settings, onUpdate }) =>
                 onChange={(e) => onUpdate('telemetryEnabled', e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-[#1b2328] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-[#0b0e10] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
+              <div className="w-11 h-6 bg-surface-container peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-content-muted peer-checked:after:bg-canvas after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
             </label>
           </div>
         </div>

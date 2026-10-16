@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Session, Project } from '../../../types';
 import {
   ListSessions,
@@ -19,18 +19,37 @@ function formatSessionDate(raw: any): string {
 }
 
 export function useSessions({ activeProject }: UseSessionsOptions = {}) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>('');
+  const [storedSessions, setSessions] = useState<Session[]>([]);
+  const [selectedSessionId, setActiveSessionId] = useState<string>('');
+  const projectId = activeProject?.id || '';
+  const projectPath = activeProject?.path || '';
+  const projectKey = JSON.stringify([projectId, projectPath]);
+  const currentProjectRef = useRef(projectKey);
+  const refreshRequestRef = useRef(0);
+  currentProjectRef.current = projectKey;
+
+  const belongsToProject = useCallback((session: Pick<Session, 'projectId' | 'projectPath'>) => {
+    if (!projectId) return false;
+    if (session.projectId) {
+      return session.projectId === projectId && (!session.projectPath || session.projectPath === projectPath);
+    }
+    return Boolean(projectPath && session.projectPath === projectPath);
+  }, [projectId, projectPath]);
+  const sessions = storedSessions.filter(belongsToProject);
+  const activeSessionId = sessions.some((session) => session.id === selectedSessionId) ? selectedSessionId : '';
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
   // Cargar lista de sesiones desde la base de datos local SQLite
   const refreshSessions = useCallback(async () => {
+    if (currentProjectRef.current !== projectKey || !projectId) return;
+    const request = ++refreshRequestRef.current;
     try {
       const records = await ListSessions();
+      if (currentProjectRef.current !== projectKey || refreshRequestRef.current !== request) return;
       if (Array.isArray(records)) {
-        const mapped: Session[] = records.map((s) => ({
+        const mapped: Session[] = records.filter(belongsToProject).map((s) => ({
           id: s.id,
           title: s.title || 'Nueva sesión',
           date: formatSessionDate(s.updatedAt || s.createdAt),
@@ -49,14 +68,19 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
     } catch (err) {
       console.error('[Merlin Sessions] Error listando sesiones de SQLite:', err);
     }
-  }, []);
+  }, [projectKey, projectId, belongsToProject]);
 
   useEffect(() => {
-    refreshSessions();
+    setSessions([]);
+    setActiveSessionId('');
+    setSearchQuery('');
+    void refreshSessions();
+    return () => { refreshRequestRef.current += 1; };
   }, [refreshSessions]);
 
   const createSession = useCallback(
     async (initialTitle?: string) => {
+      if (!projectId || currentProjectRef.current !== projectKey) return '';
       const newId = `s-${Date.now()}`;
       const title = initialTitle || `Sesión ${sessions.length + 1}`;
 
@@ -71,6 +95,8 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
         console.error('[Merlin Sessions] Error creando sesión en SQLite:', err);
       }
 
+      if (currentProjectRef.current !== projectKey) return newId;
+
       const newSession: Session = {
         id: newId,
         title,
@@ -84,12 +110,14 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
       setActiveSessionId(newId);
       return newId;
     },
-    [sessions.length, activeProject]
+    [sessions.length, activeProject, projectId, projectKey]
   );
 
   const selectSession = useCallback((id: string) => {
-    setActiveSessionId(id);
-  }, []);
+    if (currentProjectRef.current === projectKey && sessions.some((session) => session.id === id)) {
+      setActiveSessionId(id);
+    }
+  }, [sessions, projectKey]);
 
   const deleteSession = useCallback((id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -110,6 +138,7 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
 
   const ensureSession = useCallback(
     (userText: string): string => {
+      if (!projectId || currentProjectRef.current !== projectKey) return '';
       let targetId = activeSessionId;
       const title = userText.length > 25 ? `${userText.substring(0, 25)}...` : userText;
 
@@ -153,7 +182,7 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
       }
       return targetId;
     },
-    [activeSessionId, activeProject]
+    [activeSessionId, activeProject, projectId, projectKey]
   );
 
   const incrementSessionCount = useCallback((sessionId: string) => {

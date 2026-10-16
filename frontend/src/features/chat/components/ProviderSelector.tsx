@@ -91,7 +91,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     return (
       <div className="wails-no-drag flex items-center">
         <div
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#141b1f] border border-border-subtle text-xs font-mono text-content-headline"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-card border border-border-subtle text-xs font-mono text-content-headline"
           title={`Proveedor activo: ${single.name}`}
         >
           {renderLogo(single.id, 13)}
@@ -108,7 +108,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         disabled={disabled}
-        className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-[#141b1f] border border-border-subtle hover:border-border-petrol focus:border-accent-primary text-xs font-mono text-content-headline transition-colors cursor-pointer disabled:opacity-50"
+        className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-surface-card border border-border-subtle hover:border-border-petrol focus:border-accent-primary text-xs font-mono text-content-headline transition-colors cursor-pointer disabled:opacity-50"
         title="Cambiar proveedor de IA"
         aria-expanded={isOpen}
       >
@@ -118,7 +118,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-[#12181b] border border-border-subtle rounded-md shadow-2xl py-1 z-50 flex flex-col gap-0.5">
+        <div className="absolute top-full left-0 mt-1 w-48 bg-surface-neutral border border-border-subtle rounded-md shadow-2xl py-1 z-50 flex flex-col gap-0.5">
           <div className="px-3 py-1 text-[10px] font-mono text-content-dim uppercase tracking-wider border-b border-border-subtle/60">
             Proveedor de IA
           </div>
@@ -137,7 +137,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                 className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs font-mono transition-colors cursor-pointer ${
                   isSelected
                     ? 'bg-accent-primary/10 text-accent-primary font-semibold'
-                    : 'text-content-body hover:text-content-headline hover:bg-[#182328]'
+                    : 'text-content-body hover:text-content-headline hover:bg-surface-hover'
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -156,7 +156,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                 setIsOpen(false);
                 if (onOpenSettings) onOpenSettings();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-mono text-content-dim hover:text-accent-primary hover:bg-[#182328] transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-mono text-content-dim hover:text-accent-primary hover:bg-surface-hover transition-colors cursor-pointer"
             >
               <IconSettings size={12} />
               <span>Ajustes de IA...</span>

@@ -47,7 +47,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <div
           className={`w-full flex ${
             isMultiLine ? 'items-end' : 'items-center'
-          } gap-2.5 bg-[#101619] border border-border-subtle focus-within:border-accent-primary/70 focus-within:ring-1 focus-within:ring-accent-primary/20 rounded-xl px-3.5 py-2 transition-all shadow-lg shadow-black/25`}
+          } gap-2.5 bg-surface-card border border-border-subtle focus-within:border-accent-primary/70 focus-within:ring-1 focus-within:ring-accent-primary/20 rounded-xl px-3.5 py-2 transition-all shadow-lg shadow-black/25`}
         >
           {/* Textarea alineado perfectamente al centro */}
           <textarea
@@ -64,7 +64,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Modelo activo, justo al lado del botón de enviar */}
           {activeModel && (
             <span
-              className="hidden sm:inline-flex items-center text-[11px] font-mono font-medium text-content-dim bg-[#12191d] border border-border-subtle/50 rounded px-1.5 py-0.5 shrink-0 select-none"
+              className="hidden sm:inline-flex items-center text-[11px] font-mono font-medium text-content-dim bg-surface-card border border-border-subtle/50 rounded px-1.5 py-0.5 shrink-0 select-none"
               title={`Modelo activo: ${activeModel}`}
             >
               {activeModel}
@@ -91,8 +91,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               disabled={!canSubmit}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0 ${
                 canSubmit
-                  ? 'bg-accent-primary hover:bg-accent-primary-hover text-[#081013] shadow-md shadow-accent-primary/15 hover:shadow-accent-primary/30 cursor-pointer active:scale-95'
-                  : 'bg-[#162024] text-content-dim/35 cursor-not-allowed border border-border-subtle/40'
+                  ? 'bg-accent-primary hover:bg-accent-primary-hover text-canvas shadow-md shadow-accent-primary/15 hover:shadow-accent-primary/30 cursor-pointer active:scale-95'
+                  : 'bg-surface-container text-content-dim/35 cursor-not-allowed border border-border-subtle/40'
               }`}
               title="Enviar mensaje"
               aria-label="Enviar mensaje"

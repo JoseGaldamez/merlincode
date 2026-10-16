@@ -18,27 +18,34 @@
 }
 
 :root {
-  /* Colors from DESIGN.md */
-  --bg-canvas: #0B0E10;
-  --surface-neutral: #111416;
-  --surface-container: #182024;
-  --surface-card: #151B1E;
-  --surface-elevated: #1A2328;
+  /* Palette aligned with merlincode-web/src/styles/global.css. */
+  --bg-canvas: #060807;
+  --surface-neutral: #0e1110;
+  --surface-container: #151917;
+  --surface-card: #101512;
+  --surface-elevated: #1a201c;
+  --surface-lowest: #090c0a;
+  --surface-sidebar: #0b0e0c;
+  --surface-hover: #1c231f;
+  --surface-strong: #252e28;
+  --surface-bright: #303a33;
+  --surface-selected: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-canvas));
   
-  --border-subtle: #222D32;
+  --border-subtle: #232b26;
+  --border-strong: #3a4b41;
   --border-hairline: rgba(255, 255, 255, 0.07);
-  --border-petrol: #1F3D44;
+  --border-petrol: #214536;
   
-  --text-headline: #F8FAFC;
-  --text-body: #E2E8F0;
-  --text-muted: #7E8B91;
-  --text-dim: #5A6569;
+  --text-headline: #f3f4f6;
+  --text-body: #f3f4f6;
+  --text-muted: #94a3b8;
+  --text-dim: #7c8ba1;
   
-  --accent-primary: #2DD4BF;
-  --accent-primary-hover: #57F1DB;
-  --accent-petrol: #1F3D44;
-  --accent-petrol-hover: #264B54;
-  --accent-tertiary: #06B6D4;
+  --accent-primary: #10b981;
+  --accent-primary-hover: #34d399;
+  --accent-petrol: #0d1713;
+  --accent-petrol-hover: #15271e;
+  --accent-tertiary: #38bdf8;
   
   --status-success: #10B981;
   --status-thought: #38BDF8;
@@ -101,12 +108,12 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27343b;
+  background: var(--border-subtle);
   border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #394b54;
+  background: var(--border-strong);
 }
 
 /* Code & Telemetry Helpers */
@@ -215,11 +222,11 @@ input, textarea {
 
 .markdown-body blockquote {
   border-left: 3px solid var(--accent-primary);
-  background: rgba(45, 212, 191, 0.06);
+  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
   padding: 0.6rem 0.9rem;
   margin: 0.75rem 0;
   border-radius: 0 6px 6px 0;
-  color: #cbd5e1;
+  color: var(--text-body);
 }
 
 .markdown-body blockquote p {
@@ -232,18 +239,18 @@ input, textarea {
 }
 
 .markdown-body em {
-  color: #e2e8f0;
+  color: var(--text-body);
   font-style: italic;
 }
 
 .markdown-body code:not(pre code) {
   font-family: var(--font-mono);
-  background: #141f24;
+  background: var(--surface-card);
   color: var(--accent-primary);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-size: 0.86em;
-  border: 1px solid rgba(45, 212, 191, 0.2);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent);
 }
 
 .markdown-body a {

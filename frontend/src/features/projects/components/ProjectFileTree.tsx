@@ -130,7 +130,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
   if (!projectPath) {
     return (
-      <div className="flex flex-col p-3 text-center items-center justify-center gap-2 bg-[#0c1012] border-t border-border-subtle shrink-0">
+      <div className="flex flex-col p-3 text-center items-center justify-center gap-2 bg-surface-lowest border-t border-border-subtle shrink-0">
         <span className="text-[11px] font-mono text-content-dim">
           Sin carpeta vinculada
         </span>
@@ -138,7 +138,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
           <button
             type="button"
             onClick={onOpenFolder}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#152329] hover:bg-[#1a2d35] text-accent-primary text-[11px] font-mono font-medium rounded border border-border-petrol transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-selected hover:bg-surface-selected text-accent-primary text-[11px] font-mono font-medium rounded border border-border-petrol transition-colors cursor-pointer"
           >
             <IconFolder size={12} />
             <span>Abrir carpeta</span>
@@ -151,9 +151,9 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
   // Si está colapsado, se muestra únicamente la cabecera
   if (isCollapsed) {
     return (
-      <div className="flex flex-col border-t border-border-subtle bg-[#0f1416] shrink-0 select-none">
+      <div className="flex flex-col border-t border-border-subtle bg-surface-neutral shrink-0 select-none">
         <div
-          className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[#131a1e] transition-colors"
+          className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-surface-card transition-colors"
           onClick={() => toggleCollapse()}
           title="Hacer clic para desplegar panel de archivos"
         >
@@ -170,7 +170,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#152329] rounded transition-colors cursor-pointer"
+              className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-selected rounded transition-colors cursor-pointer"
               onClick={handleOpenSystemExplorer}
               title="Abrir ubicación en el explorador de archivos del sistema"
               aria-label="Abrir en explorador del sistema"
@@ -180,7 +180,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
             <button
               type="button"
-              className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#152329] rounded transition-colors cursor-pointer"
+              className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-selected rounded transition-colors cursor-pointer"
               onClick={toggleCollapse}
               title="Desplegar panel de archivos"
               aria-label="Desplegar panel"
@@ -198,7 +198,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
   return (
     <div
-      className="relative flex flex-col border-t border-border-subtle bg-[#0c1012] shrink-0 overflow-hidden"
+      className="relative flex flex-col border-t border-border-subtle bg-surface-lowest shrink-0 overflow-hidden"
       style={{
         height: `${height}px`,
         minHeight: '360px',
@@ -214,7 +214,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
       {/* Subpanel Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-[#0f1416] border-b border-border-subtle shrink-0 select-none cursor-pointer"
+        className="flex items-center justify-between px-3 py-2 bg-surface-neutral border-b border-border-subtle shrink-0 select-none cursor-pointer"
         onClick={() => toggleCollapse()}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
@@ -230,7 +230,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
         <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#152329] rounded transition-colors cursor-pointer"
+            className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-selected rounded transition-colors cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               refreshTree();
@@ -243,7 +243,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
           <button
             type="button"
-            className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#152329] rounded transition-colors cursor-pointer"
+            className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-selected rounded transition-colors cursor-pointer"
             onClick={handleOpenSystemExplorer}
             title="Abrir ubicación en el explorador de archivos del sistema"
             aria-label="Abrir en explorador del sistema"
@@ -253,7 +253,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
 
           <button
             type="button"
-            className="p-1 text-content-dim hover:text-accent-primary hover:bg-[#152329] rounded transition-colors cursor-pointer"
+            className="p-1 text-content-dim hover:text-accent-primary hover:bg-surface-selected rounded transition-colors cursor-pointer"
             onClick={toggleCollapse}
             title="Ocultar panel (bajar todo)"
             aria-label="Ocultar panel"

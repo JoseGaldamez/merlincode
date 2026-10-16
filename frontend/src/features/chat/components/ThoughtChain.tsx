@@ -11,10 +11,10 @@ export const ThoughtChain: React.FC<ThoughtChainProps> = ({ thoughts }) => {
   if (!thoughts) return null;
 
   return (
-    <div className="w-full mb-2.5 rounded-lg border border-border-petrol bg-[#10171b] overflow-hidden">
+    <div className="w-full mb-2.5 rounded-lg border border-border-petrol bg-surface-neutral overflow-hidden">
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-content-muted hover:text-content-body hover:bg-[#152227] transition-colors cursor-pointer text-left"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-content-muted hover:text-content-body hover:bg-surface-hover transition-colors cursor-pointer text-left"
         onClick={() => setIsOpen((prev) => !prev)}
       >
         {isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
@@ -23,7 +23,7 @@ export const ThoughtChain: React.FC<ThoughtChainProps> = ({ thoughts }) => {
         </span>
       </button>
       {isOpen && (
-        <div className="p-3 text-xs font-mono text-content-dim bg-[#0a0f12] border-t border-border-petrol whitespace-pre-wrap leading-relaxed">
+        <div className="p-3 text-xs font-mono text-content-dim bg-surface-lowest border-t border-border-petrol whitespace-pre-wrap leading-relaxed">
           {thoughts}
         </div>
       )}

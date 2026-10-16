@@ -8,53 +8,55 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#0b0e10',
+        canvas: 'var(--bg-canvas)',
         surface: {
-          DEFAULT: '#111416',
-          dim: '#111416',
-          bright: '#37393c',
-          lowest: '#0c0f11',
-          low: '#191c1e',
-          container: '#1d2022',
-          high: '#272a2c',
-          highest: '#323537',
-          neutral: '#111416',
-          card: '#151b1e',
-          modal: '#1a2328',
-          base: '#182024',
-          sidebar: '#101518',
+          DEFAULT: 'var(--surface-neutral)',
+          dim: 'var(--surface-neutral)',
+          bright: 'var(--surface-bright)',
+          lowest: 'var(--surface-lowest)',
+          low: 'var(--surface-card)',
+          container: 'var(--surface-container)',
+          high: 'var(--surface-elevated)',
+          highest: 'var(--surface-strong)',
+          neutral: 'var(--surface-neutral)',
+          card: 'var(--surface-card)',
+          modal: 'var(--surface-elevated)',
+          base: 'var(--surface-container)',
+          sidebar: 'var(--surface-sidebar)',
+          hover: 'var(--surface-hover)',
+          selected: 'var(--surface-selected)'
         },
         border: {
-          subtle: '#222d32',
-          petrol: '#1f3d44',
-          strong: '#3c4a46',
-          hairline: 'rgba(255, 255, 255, 0.07)',
+          subtle: 'var(--border-subtle)',
+          petrol: 'var(--border-petrol)',
+          strong: 'var(--border-strong)',
+          hairline: 'var(--border-hairline)'
         },
         accent: {
-          primary: '#2dd4bf',
-          'primary-hover': '#57f1db',
-          mint: '#57f1db',
-          petrol: '#1f3d44',
-          'petrol-hover': '#264b54',
-          cyan: '#06b6d4',
+          primary: 'var(--accent-primary)',
+          'primary-hover': 'var(--accent-primary-hover)',
+          mint: 'var(--accent-primary-hover)',
+          petrol: 'var(--accent-petrol)',
+          'petrol-hover': 'var(--accent-petrol-hover)',
+          cyan: 'var(--accent-tertiary)'
         },
         brand: {
-          primary: '#2dd4bf',
-          secondary: '#1f3d44',
-          tertiary: '#06b6d4',
+          primary: 'var(--accent-primary)',
+          secondary: 'var(--accent-petrol)',
+          tertiary: 'var(--accent-tertiary)'
         },
         content: {
-          headline: '#f8fafc',
-          body: '#e2e8f0',
-          muted: '#7e8b91',
-          dim: '#5a6569',
+          headline: 'var(--text-headline)',
+          body: 'var(--text-body)',
+          muted: 'var(--text-muted)',
+          dim: 'var(--text-dim)'
         },
         status: {
-          success: '#10b981',
-          info: '#38bdf8',
-          warning: '#f59e0b',
-          error: '#ef4444',
-        },
+          success: 'var(--status-success)',
+          info: 'var(--status-thought)',
+          warning: 'var(--status-warning)',
+          error: 'var(--status-error)'
+        }
       },
       fontFamily: {
         sans: ['Geist', 'Inter', 'Segoe UI', '-apple-system', 'sans-serif'],
@@ -70,8 +72,8 @@ export default {
         lg: '12px',
       },
       boxShadow: {
-        glow: '0 0 20px -4px rgba(45, 212, 191, 0.25)',
-        'glow-lg': '0 0 30px -6px rgba(45, 212, 191, 0.4)',
+        glow: '0 0 20px -4px color-mix(in srgb, var(--accent-primary) 25%, transparent)',
+        'glow-lg': '0 0 30px -6px color-mix(in srgb, var(--accent-primary) 40%, transparent)',
         modal: '0 16px 40px rgba(0, 0, 0, 0.7)',
       },
       keyframes: {
