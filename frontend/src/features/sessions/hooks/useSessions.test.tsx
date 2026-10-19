@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatStreamEvent, Project } from '../../../types';
 import { useSessions } from './useSessions';
 import { useChat } from '../../chat/hooks/useChat';
+import { ToolActivityPanel } from '../../chat/components/ToolActivityPanel';
 
 const bridge = vi.hoisted(() => ({
   ListSessions: vi.fn(), CreateSession: vi.fn(), DeleteSession: vi.fn(), UpdateSessionTitle: vi.fn(),
@@ -45,7 +46,8 @@ let root: Root;
 let container: HTMLDivElement;
 function Harness({ project }: { project: Project | null }) {
   current = useConversation(project);
-  return null;
+  const activity = current.chat.messages.at(-1)?.toolActivity;
+  return activity?.length ? createElement(ToolActivityPanel, { activity }) : null;
 }
 async function render(project: Project | null) {
   await act(async () => { root.render(createElement(Harness, { project })); });
@@ -76,6 +78,35 @@ afterEach(async () => {
 });
 
 describe('conversations belong to the selected project', () => {
+  it('shows a failed run proposal as an error after the assistant finishes', async () => {
+    await render(projectA);
+    await act(async () => { await current.chat.sendMessage('Ejecuta server.go'); });
+    const request = bridge.StartChatStream.mock.calls[0][0];
+    await act(async () => {
+      emit({messageId:request.messageId,type:'tool_call',toolCallId:'run1',toolName:'propose_app_run'});
+      emit({messageId:request.messageId,type:'tool_result',toolCallId:'run1',toolName:'propose_app_run',error:'No se encontró una entrada compatible.'});
+      emit({messageId:request.messageId,type:'done'});
+    });
+    expect(current.chat.messages.at(-1)?.toolActivity?.[0].status).toBe('error');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('No se encontró una entrada compatible.');
+    expect(container.textContent).not.toContain('Completado');
+  });
+
+  it('keeps a successful standalone Go proposal available for Play', async () => {
+    await render(projectA);
+    await act(async () => { await current.chat.sendMessage('Ejecuta server.go'); });
+    const request = bridge.StartChatStream.mock.calls[0][0];
+    const proposal = {id:'a'.repeat(32),project:projectA.path,directory:'.',title:'Aplicación Go',command:'go run server.go',reason:'Entrada independiente',request:{directory:'.',entry:'server.go'}};
+    await act(async () => {
+      emit({messageId:request.messageId,type:'tool_call',toolCallId:'run1',toolName:'propose_app_run'});
+      emit({messageId:request.messageId,type:'tool_result',toolCallId:'run1',toolName:'propose_app_run'});
+      emit({messageId:request.messageId,type:'run_proposed',runProposals:[proposal]});
+      emit({messageId:request.messageId,type:'done'});
+    });
+    expect(current.chat.messages.at(-1)?.runProposals).toEqual([proposal]);
+    expect(current.chat.messages.at(-1)?.toolActivity?.[0].status).toBe('done');
+  });
+
   it('changes the list, active conversation, messages and search when switching projects', async () => {
     await render(projectA);
     expect(current.sessions.map((session) => session.id)).toEqual(['a-chat', 'legacy-a']);

@@ -115,6 +115,12 @@ export function usePanelsState() {
     } catch {}
   }, []);
 
+  const openRight = useCallback(() => {
+    setRightOpen(true);
+    try { localStorage.setItem(STORAGE_KEY_RIGHT, 'true'); } catch {}
+    SavePanelsState(leftOpen, true).catch(() => {});
+  }, [leftOpen]);
+
   const handleRightWidthChange = useCallback((w: number) => {
     setRightWidth(w);
     try {
@@ -129,6 +135,7 @@ export function usePanelsState() {
     rightWidth,
     toggleLeft,
     toggleRight,
+    openRight,
     setLeftWidth: handleLeftWidthChange,
     setRightWidth: handleRightWidthChange,
   };

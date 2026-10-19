@@ -1,4 +1,4 @@
-package ai
+package agent
 
 import (
 	"context"
@@ -29,13 +29,14 @@ type ToolRegistry struct {
 
 // NewToolRegistry construye el registro de herramientas envolviendo workspace.Service tal cual,
 // sin agregar código nuevo de filesystem ni bypass del sandboxing existente (os.Root + ValidatePathInProject).
-func NewToolRegistry(ws *workspace.Service) *ToolRegistry {
+func NewToolRegistry(ws *workspace.Service, extra ...ToolExecutor) *ToolRegistry {
 	executors := []ToolExecutor{
 		readFileTool{ws: ws},
 		listFilesTool{ws: ws},
 		getTreeTool{ws: ws},
 		writeFileTool{ws: ws},
 	}
+	executors = append(executors, extra...)
 	byName := make(map[string]ToolExecutor, len(executors))
 	for _, e := range executors {
 		byName[e.Name()] = e
@@ -164,7 +165,7 @@ func (writeFileTool) Name() string { return "write_file" }
 func (writeFileTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "write_file",
-		Description: "Escribe (crea o sobrescribe) el contenido de un archivo dentro del proyecto activo. Requiere aprobación explícita del usuario antes de ejecutarse.",
+		Description: "Propone crear o sobrescribir un archivo dentro del proyecto activo. Cuando el usuario solicite crear o editar un archivo y tengas el contenido listo, llama directamente a write_file: Merlin Code mostrará automáticamente una tarjeta con la vista previa y los botones Aprobar/Rechazar, y esperará esa aprobación antes de escribir. No pidas una confirmación verbal previa ni solicites que el usuario responda sí para mostrar la tarjeta. Invocar esta herramienta prepara la propuesta; no omite la aprobación. Si faltan datos necesarios sobre el cambio, sí puedes pedirlos antes de preparar la propuesta.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

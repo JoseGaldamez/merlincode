@@ -59,39 +59,48 @@ export function useProjects() {
     }
   }, []);
 
+  const rememberProject = useCallback((proj: Project) => {
+    const newProj: Project = {
+      id: proj.id || proj.path,
+      name: proj.name,
+      path: proj.path,
+    };
+
+    setProjects((prev) => {
+      const filtered = prev.filter((p) => p.path !== newProj.path);
+      const next = [newProj, ...filtered];
+      try {
+        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    setActiveProjectId(newProj.id);
+    try {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_PROJECT, newProj.id);
+    } catch {}
+    return newProj;
+  }, []);
+
   const openFolderDialog = useCallback(async () => {
     try {
       const proj = await SelectProjectFolder();
-      if (!proj || !proj.path) {
-        // Cancelado por el usuario
-        return null;
-      }
-
-      const newProj: Project = {
-        id: proj.id || proj.path,
-        name: proj.name,
-        path: proj.path,
-      };
-
-      setProjects((prev) => {
-        const filtered = prev.filter((p) => p.path !== newProj.path);
-        const next = [newProj, ...filtered];
-        try {
-          localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-
-      setActiveProjectId(newProj.id);
-      try {
-        localStorage.setItem(STORAGE_KEY_ACTIVE_PROJECT, newProj.id);
-      } catch {}
-      return newProj;
+      if (!proj || !proj.path) return null;
+      return rememberProject(proj);
     } catch (err: any) {
       console.error('Error al abrir la carpeta:', err);
       return null;
     }
-  }, []);
+  }, [rememberProject]);
+
+  // The path comes from an existing managed execution, including projects
+  // removed from the saved list while their servers are still running.
+  const selectRunningProject = useCallback(async (path: string) => {
+    const proj = await SetActiveProject(path);
+    if (!proj?.path) throw new Error('No se pudo activar el proyecto de esta ejecución.');
+    const known = projects.find((item) => item.path === proj.path);
+    return rememberProject({ ...proj, id: known?.id || proj.id || proj.path });
+  }, [projects, rememberProject]);
 
   const selectProject = useCallback(
     async (id: string) => {
@@ -167,6 +176,7 @@ export function useProjects() {
     activeProject,
     openFolderDialog,
     selectProject,
+    selectRunningProject,
     deleteProject,
     addProject,
   };

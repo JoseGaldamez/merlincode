@@ -40,8 +40,8 @@ export const ToolActivityPanel: React.FC<ToolActivityPanelProps> = ({ activity }
       {isOpen && (
         <div className="border-t border-border-petrol divide-y divide-border-petrol/60">
           {activity.map((entry) => (
+            <div key={entry.toolCallId}>
             <div
-              key={entry.toolCallId}
               className="flex items-center gap-2.5 px-3 py-2 text-xs font-mono bg-surface-lowest"
             >
               <IconFile size={13} className="text-content-dim shrink-0" />
@@ -53,6 +53,8 @@ export const ToolActivityPanel: React.FC<ToolActivityPanelProps> = ({ activity }
                 <StatusIcon status={entry.status} />
                 <span>{STATUS_LABEL[entry.status]}</span>
               </span>
+            </div>
+            {entry.error && <p role="alert" className="px-3 pb-2 text-xs leading-relaxed text-red-300 break-words">{entry.error}</p>}
             </div>
           ))}
         </div>

@@ -1,9 +1,32 @@
 package app
 
 import (
+	"context"
 	"os"
 	"testing"
 )
+
+func TestWriteProjectFileNotifiesOnlySuccessfulWrites(t *testing.T) {
+	silenceAgentEvents(t)
+	a := newTestApp(t)
+	var changes int
+	emitChatStreamEvent = func(_ context.Context, name string, _ ...interface{}) {
+		if name == "workspace:changed" {
+			changes++
+		}
+	}
+	for _, content := range []string{"nuevo", "editado"} {
+		if err := a.WriteProjectFile("archivo.txt", content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.WriteProjectFile("../denegado.txt", "fuera"); err == nil {
+		t.Fatal("se esperaba rechazo del path traversal")
+	}
+	if changes != 2 {
+		t.Fatalf("se esperaban dos notificaciones, se recibieron %d", changes)
+	}
+}
 
 func TestAppIntegrationWorkspaceSandboxing(t *testing.T) {
 	app := NewApp()

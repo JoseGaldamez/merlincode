@@ -97,6 +97,13 @@ export const IconSparkles = ({ size = 16, className = "" }: { size?: number; cla
   </svg>
 );
 
+export const IconEraser = ({ size = 14, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="m4 13 9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3l-9 9H7l-3-3a3 3 0 0 1 0-4Z" />
+    <path d="m9 8 8 8M11 20h10" />
+  </svg>
+);
+
 export const IconTrash = ({ size = 14, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <polyline points="3 6 5 6 21 6" />
@@ -239,6 +246,12 @@ export const IconArrowUp = ({ size = 16, className = "" }: { size?: number; clas
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <line x1="12" y1="19" x2="12" y2="5" />
     <polyline points="5 12 12 5 19 12" />
+  </svg>
+);
+
+export const IconPlay = ({ size = 14, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="m8 4 12 8-12 8Z" />
   </svg>
 );
 

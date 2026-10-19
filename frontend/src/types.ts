@@ -1,3 +1,5 @@
+import type { RunProposal } from './features/executions/types';
+
 export interface ToolApprovalRequest {
   requestId: string;
   toolName: string;
@@ -13,6 +15,7 @@ export interface ToolActivityEntry {
   argsSummary?: string;
   status: 'running' | 'awaiting_approval' | 'done' | 'error' | 'rejected';
   approvalRequest?: ToolApprovalRequest;
+  error?: string;
 }
 
 export type MessageAction =
@@ -39,6 +42,7 @@ export interface Message {
   tokensCompletion?: number;
   feedback?: 'like' | 'dislike' | null;
   toolActivity?: ToolActivityEntry[];
+  runProposals?: RunProposal[];
 }
 
 export interface Session {
@@ -86,8 +90,10 @@ export interface ChatStreamEvent {
     | 'done'
     | 'error'
     | 'tool_call'
+    | 'tool_result'
     | 'tool_approval_required'
-    | 'tool_approval_resolved';
+    | 'tool_approval_resolved'
+    | 'run_proposed';
   content?: string;
   thinking?: string;
   error?: string;
@@ -100,5 +106,6 @@ export interface ChatStreamEvent {
   toolCallId?: string;
   toolArgsSummary?: string;
   approvalRequest?: ToolApprovalRequest;
+  runProposals?: RunProposal[];
 }
 

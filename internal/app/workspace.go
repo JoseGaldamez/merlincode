@@ -21,12 +21,15 @@ func (a *App) SelectProjectFolder() (*domain.ProjectInfo, error) {
 	if selectedDir == "" {
 		return nil, nil // Cancelado por el usuario
 	}
-
+	a.executionMu.Lock()
+	defer a.executionMu.Unlock()
 	return a.workspaceService.SetActive(selectedDir)
 }
 
 // SetActiveProject valida permisos y define la carpeta activa del proyecto
 func (a *App) SetActiveProject(dirPath string) (*domain.ProjectInfo, error) {
+	a.executionMu.Lock()
+	defer a.executionMu.Unlock()
 	return a.workspaceService.SetActive(dirPath)
 }
 
@@ -37,7 +40,19 @@ func (a *App) GetActiveProject() *domain.ProjectInfo {
 
 // WriteProjectFile escribe contenido en un archivo dentro del proyecto activo asegurando sandboxing
 func (a *App) WriteProjectFile(relativePath string, content string) error {
-	return a.workspaceService.WriteFile(relativePath, content)
+	if err := a.workspaceService.WriteFile(relativePath, content); err != nil {
+		return err
+	}
+	a.notifyWorkspaceChanged()
+	return nil
+}
+
+// notifyWorkspaceChanged invalida el árbol visible solamente después de una escritura exitosa.
+// No transmite contenido ni rutas; el explorador vuelve a consultar el proyecto activo.
+func (a *App) notifyWorkspaceChanged() {
+	if a.ctx != nil {
+		emitChatStreamEvent(a.ctx, "workspace:changed")
+	}
 }
 
 // ReadProjectFile lee el contenido de un archivo dentro del proyecto activo
