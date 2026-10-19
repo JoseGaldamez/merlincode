@@ -27,10 +27,11 @@ func TestProjectSwitchKeepsServersRunningAndCloseStopsAll(t *testing.T) {
 	projectA := a.workspaceService.GetActiveDir()
 	var runs []domain.Execution
 	for _, project := range []string{projectA, t.TempDir()} {
-		if _, err := a.SetActiveProject(project); err != nil {
+		info, err := a.SetActiveProject(project)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if err := a.workspaceService.WriteFile("index.html", "served by "+project); err != nil {
+		if err := a.workspaceService.WriteFile("index.html", "served by "+info.Path); err != nil {
 			t.Fatal(err)
 		}
 		proposals, err := a.PrepareAppRun(domain.RunRequest{Directory: "."})
@@ -59,7 +60,7 @@ func TestProjectSwitchKeepsServersRunningAndCloseStopsAll(t *testing.T) {
 		body, err := io.ReadAll(response.Body)
 		response.Body.Close()
 		if err != nil || string(body) != "served by "+run.Proposal.Project {
-			t.Fatalf("server no longer serves its own project: %v", err)
+			t.Fatalf("server no longer serves its own project: got %q, want %q (err=%v)", string(body), "served by "+run.Proposal.Project, err)
 		}
 	}
 	for _, run := range a.ListAppRuns() {
