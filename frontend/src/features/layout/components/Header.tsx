@@ -6,11 +6,14 @@ import { ProjectSelector } from '../../projects/components/ProjectSelector';
 import { ProviderSelector } from '../../chat/components/ProviderSelector';
 import { ProviderStatusMap } from '../../settings/hooks/useAIProviderStatus';
 import { WindowControls } from './WindowControls';
+import { RunningProjectsIndicator } from '../../executions/RunningProjectsIndicator';
+import type { ExecutionFocus } from '../../executions/types';
 
 export interface HeaderProps {
   projects: Project[];
   activeProjectId: string;
   onSelectProject: (id: string) => void;
+  onSelectRunningProject: (path: string, focus: ExecutionFocus) => Promise<void>;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenSettings?: () => void;
@@ -24,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   projects,
   activeProjectId,
   onSelectProject,
+  onSelectRunningProject,
   searchQuery,
   onSearchChange,
   onOpenSettings,
@@ -80,6 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Botón de configuración y controles de ventana */}
       <div className="wails-no-drag flex items-center h-full">
+        <RunningProjectsIndicator projects={projects} onSelect={onSelectRunningProject} />
         <button
           type="button"
           className="p-1.5 mr-1 text-content-muted hover:text-accent-primary hover:bg-surface-hover rounded transition-colors cursor-pointer"

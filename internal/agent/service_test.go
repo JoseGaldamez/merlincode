@@ -1,4 +1,4 @@
-package app
+package agent
 
 import (
 	"context"
@@ -8,25 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"merlincode/internal/ai"
 	"merlincode/internal/domain"
 	"merlincode/internal/workspace"
 )
-
-// silenceAgentEvents reemplaza los hooks de runtime de Wails por dobles no-op durante la prueba.
-// runtime.EventsEmit/LogErrorf exigen un context.Context con valores inyectados por el runtime real
-// de la app y abortan el proceso (log.Fatalf) si reciben un context.Context de prueba corriente.
-func silenceAgentEvents(t *testing.T) {
-	t.Helper()
-	origEmit := emitChatStreamEvent
-	origLog := logAgentTurnError
-	emitChatStreamEvent = func(ctx context.Context, eventName string, data ...interface{}) {}
-	logAgentTurnError = func(ctx context.Context, format string, args ...interface{}) {}
-	t.Cleanup(func() {
-		emitChatStreamEvent = origEmit
-		logAgentTurnError = origLog
-	})
-}
 
 func newTestWorkspace(t *testing.T) *workspace.Service {
 	t.Helper()
@@ -45,13 +29,9 @@ func newTestWorkspace(t *testing.T) *workspace.Service {
 	return ws
 }
 
-func newTestApp(t *testing.T) *App {
+func newTestService(t *testing.T) *Service {
 	t.Helper()
-	return &App{
-		ctx:              context.Background(),
-		workspaceService: newTestWorkspace(t),
-		pendingApprovals: make(map[string]*pendingApproval),
-	}
+	return NewService(nil, newTestWorkspace(t), nil, Callbacks{})
 }
 
 func TestWithEditedContent(t *testing.T) {
@@ -107,7 +87,7 @@ func TestSummarizeToolArgs(t *testing.T) {
 }
 
 func TestRespondToToolApproval_UnknownRequestID(t *testing.T) {
-	a := newTestApp(t)
+	a := newTestService(t)
 	err := a.RespondToToolApproval("no-existe", true, "")
 	if !errors.Is(err, domain.ErrApprovalRequestNotFound) {
 		t.Fatalf("esperado ErrApprovalRequestNotFound, obtenido: %v", err)
@@ -116,7 +96,7 @@ func TestRespondToToolApproval_UnknownRequestID(t *testing.T) {
 
 // waitForPendingApprovalID espera (con timeout corto) a que awaitToolApproval registre su entrada,
 // y retorna el requestID sintetizado internamente.
-func waitForPendingApprovalID(t *testing.T, a *App) string {
+func waitForPendingApprovalID(t *testing.T, a *Service) string {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -133,8 +113,7 @@ func waitForPendingApprovalID(t *testing.T, a *App) string {
 }
 
 func TestAwaitToolApproval_ApprovedWithEditedContent(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
+	a := newTestService(t)
 	tc := domain.ToolCall{ID: "call-1", Name: "write_file", Arguments: `{"path":"a.txt","content":"propuesto"}`}
 
 	type outcome struct {
@@ -174,8 +153,7 @@ func TestAwaitToolApproval_ApprovedWithEditedContent(t *testing.T) {
 }
 
 func TestAwaitToolApproval_Rejected(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
+	a := newTestService(t)
 	tc := domain.ToolCall{ID: "call-2", Name: "write_file", Arguments: `{"path":"b.txt","content":"x"}`}
 
 	resCh := make(chan approvalResponse, 1)
@@ -200,8 +178,7 @@ func TestAwaitToolApproval_Rejected(t *testing.T) {
 }
 
 func TestAwaitToolApproval_ContextCanceled(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
+	a := newTestService(t)
 	tc := domain.ToolCall{ID: "call-3", Name: "write_file", Arguments: `{"path":"c.txt","content":"x"}`}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -224,12 +201,12 @@ func TestAwaitToolApproval_ContextCanceled(t *testing.T) {
 }
 
 func TestExecuteToolCalls_UnknownTool(t *testing.T) {
-	a := newTestApp(t)
-	registry := ai.NewToolRegistry(a.workspaceService)
+	a := newTestService(t)
+	registry := NewToolRegistry(a.workspaceService)
 	var trace []domain.ToolTraceEntry
 
 	calls := []domain.ToolCall{{ID: "1", Name: "borrar_todo", Arguments: "{}"}}
-	results, canceled := a.executeToolCalls(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
+	results, canceled := a.ExecuteTools(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
 
 	if canceled {
 		t.Fatal("no se esperaba cancelación")
@@ -243,18 +220,18 @@ func TestExecuteToolCalls_UnknownTool(t *testing.T) {
 }
 
 func TestExecuteToolCalls_ReadFileSuccessAndError(t *testing.T) {
-	a := newTestApp(t)
+	a := newTestService(t)
 	if err := a.workspaceService.WriteFile("nota.txt", "contenido de prueba"); err != nil {
 		t.Fatalf("preparación falló: %v", err)
 	}
-	registry := ai.NewToolRegistry(a.workspaceService)
+	registry := NewToolRegistry(a.workspaceService)
 	var trace []domain.ToolTraceEntry
 
 	calls := []domain.ToolCall{
 		{ID: "1", Name: "read_file", Arguments: `{"path":"nota.txt"}`},
 		{ID: "2", Name: "read_file", Arguments: `{"path":"../fuera.txt"}`},
 	}
-	results, canceled := a.executeToolCalls(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
+	results, canceled := a.ExecuteTools(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
 	if canceled {
 		t.Fatal("no se esperaba cancelación")
 	}
@@ -273,9 +250,21 @@ func TestExecuteToolCalls_ReadFileSuccessAndError(t *testing.T) {
 }
 
 func TestExecuteToolCalls_WriteRequiresApprovalThenApplied(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
-	registry := ai.NewToolRegistry(a.workspaceService)
+	a := newTestService(t)
+	var approvals, changes int
+	a.callbacks.Emit = func(event domain.ChatStreamEvent) {
+		if event.Type == "tool_approval_required" {
+			approvals++
+		}
+	}
+	a.callbacks.WorkspaceChanged = func() {
+		changes++
+		written, err := a.workspaceService.ReadFile("salida.txt")
+		if err != nil || written != "contenido editado por el usuario" {
+			t.Errorf("el árbol fue notificado antes de guardar: %q, %v", written, err)
+		}
+	}
+	registry := NewToolRegistry(a.workspaceService)
 	var trace []domain.ToolTraceEntry
 
 	calls := []domain.ToolCall{
@@ -288,11 +277,14 @@ func TestExecuteToolCalls_WriteRequiresApprovalThenApplied(t *testing.T) {
 	}
 	resCh := make(chan outcome, 1)
 	go func() {
-		results, canceled := a.executeToolCalls(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
+		results, canceled := a.ExecuteTools(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
 		resCh <- outcome{results, canceled}
 	}()
 
 	requestID := waitForPendingApprovalID(t, a)
+	if _, err := a.workspaceService.ReadFile("salida.txt"); err == nil {
+		t.Fatal("el archivo no debe existir antes de aprobar la tarjeta")
+	}
 	// El usuario edita el contenido antes de aprobar
 	if err := a.RespondToToolApproval(requestID, true, "contenido editado por el usuario"); err != nil {
 		t.Fatalf("RespondToToolApproval falló: %v", err)
@@ -320,12 +312,16 @@ func TestExecuteToolCalls_WriteRequiresApprovalThenApplied(t *testing.T) {
 	if len(trace) != 1 || trace[0].Approved == nil || !*trace[0].Approved {
 		t.Fatalf("traza no refleja la aprobación: %+v", trace)
 	}
+	if approvals != 1 || changes != 1 {
+		t.Fatalf("se esperaba una tarjeta y una actualización: aprobaciones=%d cambios=%d", approvals, changes)
+	}
 }
 
 func TestExecuteToolCalls_WriteRejected(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
-	registry := ai.NewToolRegistry(a.workspaceService)
+	var changes int
+	a := newTestService(t)
+	a.callbacks.WorkspaceChanged = func() { changes++ }
+	registry := NewToolRegistry(a.workspaceService)
 	var trace []domain.ToolTraceEntry
 
 	calls := []domain.ToolCall{
@@ -338,7 +334,7 @@ func TestExecuteToolCalls_WriteRejected(t *testing.T) {
 	}
 	resCh := make(chan outcome, 1)
 	go func() {
-		results, canceled := a.executeToolCalls(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
+		results, canceled := a.ExecuteTools(context.Background(), domain.ChatStreamRequest{}, registry, calls, &trace)
 		resCh <- outcome{results, canceled}
 	}()
 
@@ -365,12 +361,14 @@ func TestExecuteToolCalls_WriteRejected(t *testing.T) {
 	if len(trace) != 1 || trace[0].Approved == nil || *trace[0].Approved {
 		t.Fatalf("traza no refleja el rechazo: %+v", trace)
 	}
+	if changes != 0 {
+		t.Fatal("una escritura rechazada no debe notificar cambios")
+	}
 }
 
 func TestExecuteToolCalls_CanceledWhileAwaitingApproval(t *testing.T) {
-	silenceAgentEvents(t)
-	a := newTestApp(t)
-	registry := ai.NewToolRegistry(a.workspaceService)
+	a := newTestService(t)
+	registry := NewToolRegistry(a.workspaceService)
 	var trace []domain.ToolTraceEntry
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -384,7 +382,7 @@ func TestExecuteToolCalls_CanceledWhileAwaitingApproval(t *testing.T) {
 	}
 	resCh := make(chan outcome, 1)
 	go func() {
-		results, canceled := a.executeToolCalls(ctx, domain.ChatStreamRequest{}, registry, calls, &trace)
+		results, canceled := a.ExecuteTools(ctx, domain.ChatStreamRequest{}, registry, calls, &trace)
 		resCh <- outcome{results, canceled}
 	}()
 

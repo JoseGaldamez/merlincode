@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { Header, usePanelsState } from './features/layout';
 import { LeftSidebar, useSessions } from './features/sessions';
@@ -6,9 +6,14 @@ import { RightSidebar, useArtifacts } from './features/artifacts';
 import { ChatArea, useChat } from './features/chat';
 import { SettingsModal, useSettingsForm, useAIProviderStatus } from './features/settings';
 import { useProjects } from './features/projects';
+import { ExecutionProvider } from './features/executions/ExecutionProvider';
+import { ExecutionFlight } from './features/executions/ExecutionFlight';
+import type { ExecutionFocus } from './features/executions/types';
+import './features/executions/executions.css';
 
 export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [executionFocus, setExecutionFocus] = useState<ExecutionFocus>();
 
   // Estado global de configuración de IA y estado de credenciales en el llavero
   const { statuses, refreshStatuses } = useAIProviderStatus();
@@ -21,6 +26,7 @@ export function App() {
     activeProject,
     openFolderDialog,
     selectProject,
+    selectRunningProject,
     deleteProject,
     addProject,
   } = useProjects();
@@ -77,9 +83,20 @@ export function App() {
     rightWidth,
     toggleLeft,
     toggleRight,
+    openRight,
     setLeftWidth,
     setRightWidth,
   } = usePanelsState();
+
+  const revealExecution = useCallback((focus: ExecutionFocus) => {
+    openRight();
+    setExecutionFocus(focus);
+  }, [openRight]);
+
+  const showRunningProject = useCallback(async (path: string, focus: ExecutionFocus) => {
+    await selectRunningProject(path);
+    revealExecution(focus);
+  }, [selectRunningProject, revealExecution]);
 
   // Refrescar estado de proveedores al cerrar el modal de ajustes
   useEffect(() => {
@@ -114,11 +131,13 @@ export function App() {
   };
 
   return (
+    <ExecutionProvider project={activeProject?.path || ''} onReveal={revealExecution} onRequestFix={sendMessage} chatBusy={isLoading}>
     <div className="h-screen w-screen flex flex-col bg-canvas text-content-body overflow-hidden select-none">
       <Header
         projects={projects}
         activeProjectId={activeProjectId}
         onSelectProject={selectProject}
+        onSelectRunningProject={showRunningProject}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -166,6 +185,7 @@ export function App() {
           artifacts={artifacts}
           selectedArtifactId={selectedArtifactId}
           onSelectArtifact={setSelectedArtifactId}
+          executionFocus={executionFocus}
         />
       </div>
 
@@ -183,7 +203,9 @@ export function App() {
           setTelemetry((prev) => ({ ...prev, ...updated }));
         }}
       />
+      <ExecutionFlight focus={executionFocus} />
     </div>
+    </ExecutionProvider>
   );
 }
 

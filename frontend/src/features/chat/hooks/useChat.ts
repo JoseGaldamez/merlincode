@@ -9,6 +9,7 @@ import {
 } from '../../../../wailsjs/go/app/App';
 import { domain } from '../../../../wailsjs/go/models';
 import { EventsOn } from '../../../../wailsjs/runtime/runtime';
+import { proposalsFromTrace } from '../../executions/proposals';
 
 interface UseChatOptions {
   activeProject?: Project | null;
@@ -109,6 +110,7 @@ export function useChat({
             tokensCompletion: rec.tokensCompletion,
             modelId: rec.modelId || undefined,
             feedback: (rec.feedback as 'like' | 'dislike') || null,
+            runProposals: proposalsFromTrace(rec.toolTrace),
           }));
           setMessages(loaded);
         } else {
@@ -131,6 +133,13 @@ export function useChat({
   useEffect(() => {
     const unsubscribe = EventsOn('chat:stream', (event: ChatStreamEvent) => {
       if (!event || event.messageId !== currentStreamingIdRef.current) return;
+
+      if (event.type === 'run_proposed') {
+        setMessages((previous) => previous.map((message) => message.id === event.messageId
+          ? { ...message, runProposals: [...new Map([...(message.runProposals || []), ...(event.runProposals || [])].map((proposal) => [proposal.id, proposal])).values()] }
+          : message));
+        return;
+      }
 
       if (event.type === 'status') {
         if (event.statusText) {
@@ -189,6 +198,15 @@ export function useChat({
             return { ...m, status: 'tool_running', toolActivity: activity };
           })
         );
+        return;
+      }
+
+      if (event.type === 'tool_result') {
+        setMessages((previous) => previous.map((message) => message.id === event.messageId
+          ? { ...message, toolActivity: (message.toolActivity || []).map((activity) => activity.toolCallId === event.toolCallId
+            ? { ...activity, status: event.error ? 'error' as const : 'done' as const, error: event.error }
+            : activity) }
+          : message));
         return;
       }
 
@@ -434,7 +452,6 @@ export function useChat({
       }));
 
       console.log(`[Merlin Chat] Iniciando envío de mensaje:`, {
-        prompt: trimmed,
         provider: selectedProviderId,
         model: selectedModelId || 'automático',
         historyCount: historyToSend.length,

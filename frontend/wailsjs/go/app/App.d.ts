@@ -8,6 +8,8 @@ export function ClearAIProviderAdminKey(arg1:string):Promise<void>;
 
 export function ClearAIProviderKey(arg1:string):Promise<void>;
 
+export function ClearAppRunLogs(arg1:string):Promise<domain.Execution>;
+
 export function CreateSession(arg1:string,arg2:string,arg3:string,arg4:string):Promise<domain.Session>;
 
 export function DeleteSession(arg1:string):Promise<void>;
@@ -28,6 +30,8 @@ export function InitialWindowState():Promise<domain.WindowState>;
 
 export function ListAIProviderStatuses():Promise<Array<domain.ProviderStatus>>;
 
+export function ListAppRuns():Promise<Array<domain.Execution>>;
+
 export function ListProjectFiles():Promise<Array<domain.FileItem>>;
 
 export function ListSessions():Promise<Array<domain.Session>>;
@@ -36,7 +40,11 @@ export function OpenDirectoryInExplorer(arg1:string):Promise<void>;
 
 export function OpenURLInDefaultBrowser(arg1:string):Promise<void>;
 
+export function PrepareAppRun(arg1:domain.RunRequest):Promise<Array<domain.RunProposal>>;
+
 export function ReadProjectFile(arg1:string):Promise<string>;
+
+export function RemoveAppRun(arg1:string):Promise<domain.Execution>;
 
 export function RespondToToolApproval(arg1:string,arg2:boolean,arg3:string):Promise<void>;
 
@@ -54,7 +62,11 @@ export function SendAIProviderTestMessage(arg1:string,arg2:string,arg3:string):P
 
 export function SetActiveProject(arg1:string):Promise<domain.ProjectInfo>;
 
+export function StartAppRun(arg1:string):Promise<domain.Execution>;
+
 export function StartChatStream(arg1:domain.ChatStreamRequest):Promise<void>;
+
+export function StopAppRun(arg1:string):Promise<void>;
 
 export function UpdateMessageFeedback(arg1:string,arg2:string):Promise<void>;
 

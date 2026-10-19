@@ -61,6 +61,65 @@ La aplicación opera bajo un modelo de **espacio de trabajo confinado (sandboxin
 
 ---
 
+## Ejecutar aplicaciones desde el chat
+
+Selecciona un proyecto y pide al agente que ejecute la aplicación. El agente inspecciona
+los archivos y prepara una tarjeta con el comando, la carpeta y un botón **Play**.
+Solo ese clic inicia la aplicación; recibir una propuesta o recuperar el historial no
+ejecuta procesos.
+
+- **JavaScript/TypeScript:** el agente lee `package.json` para analizar los scripts,
+  las dependencias y `packageManager`. El backend verifica el manifiesto y los lockfiles
+  de npm, pnpm, Yarn y Bun, incluidos los de un workspace superior. Prioriza `dev`, `start`,
+  `serve` y `preview`, y también reconoce nombres personalizados como `site:dev` según
+  su contenido. Admite React/Vue/Svelte con Vite, React Scripts, Angular CLI,
+  Vue CLI, Next, Astro, Nuxt y Webpack, y entradas
+  de servidores Node/Bun. Rechaza comandos compuestos, hooks pre/post y argumentos
+  fuera de los perfiles admitidos. Una configuración ambigua requiere corregir o
+  declarar el gestor; no se elige otro silenciosamente.
+- **Python:** ejecuta archivos `.py` seleccionados explícitamente (incluidos scripts
+  cortos como `hola_mundo.py`) y reconoce servidores FastAPI, Flask, Django y
+  `http.server`, con uv, Poetry, Pipenv o un intérprete local. No requiere convertir
+  un script en servidor ni agregar un bloque `__main__`. El agente puede indicar
+  una entrada real dentro de una subcarpeta. Los entornos virtuales deben cumplir la política de
+  rutas sin enlaces del workspace.
+- **Go:** detecta entradas `package main` con `func main`, con o sin `go.mod`.
+  Los archivos independientes (por ejemplo `server.go`) se ejecutan con `go run server.go`;
+  los módulos se ejecutan como paquetes para incluir sus archivos auxiliares.
+- **HTML estático:** utiliza el servidor integrado, enlazado a localhost y un puerto
+  disponible, sin depender de Python ni descargar herramientas.
+
+Al pulsar Play se abre la sección **Ejecuciones** del panel derecho, debajo de
+Artefactos, con altura ajustable y plegado independiente. Cada aplicación
+ofrece Stop, relanzamiento, limpieza de logs (borrador) y una consola desplegable.
+La papelera detiene el proceso y elimina su entrada del panel.
+Si una ejecución falla, **Pedir solución a Merlin** envía al chat del proyecto el
+comando, la entrada, el código de salida y los logs recientes para preparar una corrección con aprobación.
+Editar el código y relanzarlo actualiza la ejecución sin duplicarla, siempre que conserve el mismo
+comando y perfil; los cambios de lanzador requieren revisar una nueva propuesta. La salida se
+actualiza por lotes y conserva los últimos 64 KiB por ejecución en memoria. Se pueden
+mantener hasta ocho aplicaciones simultáneas; cerrar el panel no las detiene.
+
+Las ejecuciones siguen activas al cambiar de proyecto. El indicador junto a
+Configuración muestra el total activo y la cantidad por proyecto; al elegir uno,
+se activa su carpeta y se abre su panel de Ejecuciones. Todas se detienen al cerrar Merlin Code. En Windows
+10 o posterior se utiliza un Job Object por ejecución, sin heredar su handle, para
+terminar también los procesos hijos incluso si Merlin finaliza inesperadamente.
+En macOS/Linux se gestionan grupos de procesos para el cierre normal; esto no ofrece
+la misma garantía ante una terminación forzada de Merlin.
+
+Los programas se resuelven mediante el `PATH` del equipo. En Windows también se
+respeta `PATHEXT` y se admiten ejecutables y lanzadores `.cmd`/`.bat`, sin depender
+de la estructura interna de instalación de npm, pnpm u otros runtimes. Estos
+lanzadores conservan la captura de salida y el control de sus procesos hijos.
+
+El gestor no acepta comandos libres ni instala dependencias. Comprueba nuevamente
+la propuesta antes de iniciar y requiere una nueva si cambió su configuración.
+**Los runtimes externos ejecutan código del proyecto con los permisos del usuario;
+la validación de comandos y carpetas no constituye un aislamiento del sistema operativo.**
+Las operaciones de archivos de Merlin y el servidor HTML integrado conservan la
+validación del workspace y los handles `os.Root`.
+
 ## Guía de Instalación desde Cero
 
 Esta guía está redactada paso a paso para personas que **nunca han utilizado Wails** y que **aún no tienen instalado Golang** en su computadora.
@@ -211,66 +270,87 @@ El binario optimizado y empaquetado se generará en la carpeta:
 
 ## Arquitectura del Proyecto
 
-El proyecto está organizado siguiendo principios de **Clean Architecture**, alta cohesión y separación de responsabilidades:
+El backend es un **monolito modular**, organizado por responsabilidad. Los servicios
+mantienen su estado y sus reglas; `internal/app` conecta esos servicios con Wails.
+Las interfaces se definen donde se consumen y se utilizan en los límites que necesitan
+sustitución, como el proveedor de chat y la persistencia del agente.
 
-```
+```text
 merlincode/
-├── app.go                      # Fachada (Facade) que expone los métodos de Go a Wails y React
-├── main.go                     # Punto de entrada del binario Wails y configuración de ventana
-├── go.mod                      # Declaración de módulos y dependencias de Go
-├── wails.json                  # Configuración del proyecto Wails
-├── build/                      # Recursos de compilación, iconos y binarios generados
-│   ├── appicon.png             # Icono principal de la aplicación
-│   └── bin/                    # Directorio de salida del ejecutable de producción
-├── internal/                   # Paquetes privados del backend en Go
-│   ├── domain/                 # Entidades puras y errores de dominio
-│   │   ├── errors.go           # Errores fuertemente tipados (acceso denegado, permisos, etc.)
-│   │   ├── project.go          # Modelos ProjectInfo, FileItem y FileNode
-│   │   └── window.go           # Modelos WindowState y PanelsState
-│   ├── window/                 # Servicio de gestión y persistencia de ventana y paneles
-│   │   ├── service.go          # Lectura/escritura concurrente de %APPDATA%/merlincode/window.json
-│   │   └── service_test.go     # Pruebas unitarias del servicio de ventana
-│   └── workspace/              # Servicio del espacio de trabajo y sistema de archivos
-│       ├── security.go         # Validación de permisos y protección contra Path Traversal
-│       ├── explorer.go         # Lanzador nativo multiplataforma del explorador del sistema
-│       ├── service.go          # Gestión de proyecto activo, árbol jerárquico y lectura/escritura
-│       └── service_test.go     # Pruebas unitarias de seguridad y manipulación de archivos
-└── frontend/                   # Aplicación cliente en React 18 + TypeScript + Vite
-    ├── index.html              # Punto de entrada HTML
-    ├── package.json            # Dependencias de npm y scripts de Vite
-    ├── tailwind.config.js      # Configuración y paleta de colores de Tailwind CSS
-    ├── vite.config.ts          # Configuración del empaquetador Vite
-    └── src/
-        ├── App.tsx             # Componente raíz de la interfaz
-        ├── main.tsx            # Inicialización de React en el DOM
-        ├── types.ts            # Definición de tipos e interfaces TypeScript
-        ├── components/         # Componentes atómicos transversales e iconos SVG
-        │   └── Icons.tsx       # Catálogo centralizado de iconos vectoriales
-        └── features/           # Arquitectura basada en características (Feature-Driven)
-            ├── chat/           # ChatArea, MessageList, MessageItem, ChatInput, EmptyChatState
-            ├── layout/         # Header, WindowControls, ResizableSidebar
-            ├── projects/       # ProjectFileTree, ProjectSelector
-            ├── artifacts/      # Visor y gestión de artefactos generados
-            ├── sessions/       # Listado e historial de sesiones de conversación
-            └── settings/       # Modal de configuración de modelos y preferencias
+├── main.go                         # Arranque de Wails, ventana y assets embebidos
+├── internal/
+│   ├── app/                        # Fachada pública, ciclo de vida y adaptador de eventos Wails
+│   │   ├── app.go                  # Composición de servicios y cierre de recursos
+│   │   ├── agent.go                # Puente del agente a eventos y aprobaciones de la UI
+│   │   └── chat.go, execution.go…   # Métodos públicos agrupados por funcionalidad
+│   ├── agent/                      # Coordinación de turnos independiente de Wails
+│   │   ├── service.go              # Contratos, configuración y bucle del agente
+│   │   ├── approvals.go            # Aprobaciones pendientes, respuesta y cancelación
+│   │   ├── tool_execution.go        # Ejecución de herramientas y eventos de resultados
+│   │   ├── tools.go                # Registro y adaptadores de herramientas del workspace
+│   │   ├── run_tool.go             # Propuestas de ejecución; no inicia procesos
+│   │   └── completion.go           # Persistencia y eventos de fin, error o cancelación
+│   ├── ai/                         # Proveedores y gestión segura de sus credenciales
+│   │   ├── service.go              # Estado compartido e inicialización
+│   │   ├── metadata.go             # Persistencia privada y migración de metadatos
+│   │   ├── credentials.go          # Operaciones con llavero y estados sin secretos
+│   │   ├── provider_operations.go   # Prueba de conexión y consulta de consumo
+│   │   ├── chat.go                 # Validación y streaming con límites
+│   │   ├── catalog.go, configs/     # Modelos y configuración declarativa
+│   │   ├── providers/              # Adaptadores Anthropic, OpenAI, Google y DeepSeek
+│   │   └── transport/              # HTTP, límites y sanitización de transporte
+│   ├── runner/                     # Detección y supervisión de aplicaciones
+│   │   ├── detect.go               # Validación común, huellas y selección de perfiles
+│   │   ├── detect_javascript.go    # Scripts y gestores npm/pnpm/yarn/bun
+│   │   ├── detect_python.go        # Entradas, frameworks y gestores Python
+│   │   ├── detect_go.go            # Aplicaciones Go con o sin módulo
+│   │   ├── service.go              # Ciclo de vida, salida y eventos de ejecuciones
+│   │   ├── runtime.go              # Resolución de programas y entorno
+│   │   └── process_*.go, launch_windows.go # Control de procesos según el SO
+│   ├── workspace/                  # Proyecto activo, archivos y confinamiento con os.Root
+│   ├── session/                    # Sesiones y mensajes en SQLite
+│   ├── window/                     # Persistencia de ventana y paneles
+│   ├── domain/                     # Modelos compartidos y errores sin dependencias de servicios
+│   └── platform/                   # Adaptadores del sistema: config, keyring y desktop
+└── frontend/
+    ├── wailsjs/                    # Bindings generados; no se editan manualmente
+    └── src/features/               # chat, executions, artifacts, projects, sessions, layout, settings
 ```
 
-### Flujo de Datos y Seguridad (Sandboxing)
+Los archivos `*_test.go` permanecen junto al paquete que verifican. Las pruebas del
+agente utilizan proveedores, persistencia y callbacks inyectados; no necesitan un
+runtime Wails. Las pruebas de `app` cubren el puente nativo y la integración entre servicios.
 
+### Flujo de datos y límites entre módulos
+
+```text
+React ── bindings Wails ──► app
+                            ├──► agent ──► ai ──► providers ──► transport
+                            │      ├──► workspace (herramientas confinadas)
+                            │      └──► session   (persistencia de respuestas)
+                            ├──► runner ──► workspace (raíces validadas)
+                            ├──► workspace
+                            ├──► session
+                            └──► window
+
+agent ── callbacks ──► app ── eventos Wails ──► React
 ```
-[ React 18 / Frontend ]
-         │  (Wails IPC Bindings)
-         ▼
-[ app.go (Facade) ]
-         │
-         ├──► [ internal/window.Service ]    ──► Persiste ventana en %APPDATA%
-         │
-         └──► [ internal/workspace.Service ]
-                     │
-                     ├──► [ security.go ]    ──► Valida contención estricta (Anti-Path Traversal)
-                     ├──► [ service.go ]     ──► Construye árbol de archivos (FileTree)
-                     └──► [ explorer.go ]    ──► Invoca explorer.exe / open / xdg-open
-```
+
+- `app` conserva el ciclo de vida nativo, la reserva y cancelación de streams y los
+  métodos públicos usados por los bindings. Delega la coordinación del agente a `agent.Service`.
+- `agent` consume el contrato de chat, el almacén de mensajes y callbacks para emitir
+  eventos, notificar escrituras y presentar errores. No importa Wails ni implementaciones de proveedores.
+- `ai` conoce los proveedores y el llavero; no conoce el workspace ni ejecuta herramientas.
+  Sus archivos se separan por responsabilidad dentro del mismo servicio y conservan los mismos mutexes.
+- `runner` mantiene sus perfiles por ecosistema y comparte la lectura validada y la
+  huella de los archivos consultados. No acepta comandos arbitrarios del modelo.
+- `workspace` centraliza el confinamiento de rutas y los handles `os.Root`. Las
+  herramientas y el runner reutilizan esas garantías.
+- Preparar una propuesta no inicia procesos. Play sigue siendo una acción explícita
+  del usuario. Las escrituras siguen esperando la aprobación de su tarjeta.
+
+Esta distribución permite extender un proveedor, una herramienta o un perfil de
+lanzamiento en su módulo correspondiente, sin añadir capas a los servicios pequeños.
 
 ---
 

@@ -60,18 +60,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         maxWidth: isOpen ? '360px' : undefined,
       }}
     >
-      {/* Botón para expandir cuando está colapsado */}
+      {/* El margen exterior deja libre el borde de redimensionado de Wails. */}
       {!isOpen ? (
         <button
           type="button"
-          className="w-full h-full flex flex-col items-center justify-start pt-3 gap-3 text-content-dim hover:text-accent-primary transition-colors cursor-pointer"
+          className="mx-1.5 h-full flex flex-col items-center justify-start pt-3 gap-3 text-content-dim hover:text-accent-primary transition-colors cursor-pointer"
           onClick={onToggle}
-          title="Expandir panel de sesiones"
+          title="Expandir panel de sesiones y directorio"
           aria-label="Expandir panel de sesiones"
         >
           <IconPanelLeft size={16} />
           <span className="[writing-mode:vertical-lr] text-[10px] tracking-widest font-mono text-content-dim font-semibold mt-1">
-            SESIONES
+            Sesiones | Directorio
           </span>
         </button>
       ) : (

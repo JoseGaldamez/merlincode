@@ -12,6 +12,7 @@ import { ThoughtChain } from './ThoughtChain';
 import { ToolActivityPanel } from './ToolActivityPanel';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { FormattedMessageContent } from './FormattedMessageContent';
+import { RunProposalCard } from '../../executions/RunProposalCard';
 
 interface MessageItemProps {
   message: Message;
@@ -196,6 +197,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               />
             );
           })()}
+
+          {isAssistant && message.runProposals?.map((proposal) => <RunProposalCard key={proposal.id} proposal={proposal} />)}
 
           {/* Footer toolbar: SOLO visible cuando la respuesta ha terminado por completo */}
           {isAssistant && message.status === 'done' && message.content && (

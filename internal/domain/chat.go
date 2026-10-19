@@ -38,9 +38,11 @@ const (
 	ChunkTypeDone     StreamChunkType = "done"
 	ChunkTypeError    StreamChunkType = "error"
 	ChunkTypeToolCall StreamChunkType = "tool_call"
+	// Tool results are emitted by the application after execution, not by providers.
+	ChunkTypeToolResult StreamChunkType = "tool_result"
 
 	// ChunkTypeToolApprovalRequired y ChunkTypeToolApprovalResolved solo los emite la capa de
-	// orquestación en internal/app, nunca los providers directamente.
+	// orquestación en internal/agent, nunca los providers directamente.
 	ChunkTypeToolApprovalRequired StreamChunkType = "tool_approval_required"
 	ChunkTypeToolApprovalResolved StreamChunkType = "tool_approval_resolved"
 )
@@ -55,21 +57,22 @@ type StreamChunk struct {
 
 // ChatStreamEvent es el evento estructurado que se transmite en tiempo real vía Wails hacia el frontend.
 type ChatStreamEvent struct {
-	SessionID        string          `json:"sessionId"`
-	MessageID        string          `json:"messageId"`
-	Type             StreamChunkType `json:"type"`
-	StatusText       string          `json:"statusText,omitempty"`
-	Content          string          `json:"content,omitempty"`
-	Thinking         string          `json:"thinking,omitempty"`
-	ProviderID       string          `json:"providerId,omitempty"`
-	ModelID          string          `json:"modelId,omitempty"`
-	TokensPrompt     int64           `json:"tokensPrompt,omitempty"`
-	TokensCompletion int64           `json:"tokensCompletion,omitempty"`
-	Error            string          `json:"error,omitempty"`
-	ToolName         string          `json:"toolName,omitempty"`
-	ToolCallID       string          `json:"toolCallId,omitempty"`
-	ToolArgsSummary  string          `json:"toolArgsSummary,omitempty"`
+	SessionID        string               `json:"sessionId"`
+	MessageID        string               `json:"messageId"`
+	Type             StreamChunkType      `json:"type"`
+	StatusText       string               `json:"statusText,omitempty"`
+	Content          string               `json:"content,omitempty"`
+	Thinking         string               `json:"thinking,omitempty"`
+	ProviderID       string               `json:"providerId,omitempty"`
+	ModelID          string               `json:"modelId,omitempty"`
+	TokensPrompt     int64                `json:"tokensPrompt,omitempty"`
+	TokensCompletion int64                `json:"tokensCompletion,omitempty"`
+	Error            string               `json:"error,omitempty"`
+	ToolName         string               `json:"toolName,omitempty"`
+	ToolCallID       string               `json:"toolCallId,omitempty"`
+	ToolArgsSummary  string               `json:"toolArgsSummary,omitempty"`
 	ApprovalRequest  *ToolApprovalRequest `json:"approvalRequest,omitempty"`
+	RunProposals     []RunProposal        `json:"runProposals,omitempty"`
 }
 
 // ChatCompletionResult almacena el resultado final de la generación del chat.

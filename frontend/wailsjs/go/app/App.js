@@ -14,6 +14,10 @@ export function ClearAIProviderKey(arg1) {
   return window['go']['app']['App']['ClearAIProviderKey'](arg1);
 }
 
+export function ClearAppRunLogs(arg1) {
+  return window['go']['app']['App']['ClearAppRunLogs'](arg1);
+}
+
 export function CreateSession(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['CreateSession'](arg1, arg2, arg3, arg4);
 }
@@ -54,6 +58,10 @@ export function ListAIProviderStatuses() {
   return window['go']['app']['App']['ListAIProviderStatuses']();
 }
 
+export function ListAppRuns() {
+  return window['go']['app']['App']['ListAppRuns']();
+}
+
 export function ListProjectFiles() {
   return window['go']['app']['App']['ListProjectFiles']();
 }
@@ -70,8 +78,16 @@ export function OpenURLInDefaultBrowser(arg1) {
   return window['go']['app']['App']['OpenURLInDefaultBrowser'](arg1);
 }
 
+export function PrepareAppRun(arg1) {
+  return window['go']['app']['App']['PrepareAppRun'](arg1);
+}
+
 export function ReadProjectFile(arg1) {
   return window['go']['app']['App']['ReadProjectFile'](arg1);
+}
+
+export function RemoveAppRun(arg1) {
+  return window['go']['app']['App']['RemoveAppRun'](arg1);
 }
 
 export function RespondToToolApproval(arg1, arg2, arg3) {
@@ -106,8 +122,16 @@ export function SetActiveProject(arg1) {
   return window['go']['app']['App']['SetActiveProject'](arg1);
 }
 
+export function StartAppRun(arg1) {
+  return window['go']['app']['App']['StartAppRun'](arg1);
+}
+
 export function StartChatStream(arg1) {
   return window['go']['app']['App']['StartChatStream'](arg1);
+}
+
+export function StopAppRun(arg1) {
+  return window['go']['app']['App']['StopAppRun'](arg1);
 }
 
 export function UpdateMessageFeedback(arg1, arg2) {
