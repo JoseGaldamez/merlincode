@@ -28,6 +28,12 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 				if errors.Is(err, context.Canceled) {
 					return results, true
 				}
+				if errors.Is(err, domain.ErrEditOldStringNotFound) || errors.Is(err, domain.ErrEditOldStringNotUnique) || errors.Is(err, domain.ErrEditOldStringEmpty) {
+					msg := sanitizeToolErrorForModel(err)
+					results = append(results, domain.ToolResult{ToolCallID: tc.ID, Name: tc.Name, Content: msg, IsError: true})
+					*trace = append(*trace, domain.ToolTraceEntry{ToolName: tc.Name, Arguments: tc.Arguments, Result: msg, IsError: true})
+					continue
+				}
 				resp.approved = false
 			}
 			approvedPtr = &resp.approved
@@ -48,7 +54,7 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 			content = sanitizeToolErrorForModel(err)
 			isError = true
 		}
-		if tc.Name == "write_file" && !isError {
+		if (tc.Name == "write_file" || tc.Name == "edit_file") && !isError {
 			a.callbacks.WorkspaceChanged()
 		}
 		resultEvent := domain.ChatStreamEvent{SessionID: req.SessionID, MessageID: req.MessageID, Type: domain.ChunkTypeToolResult, ToolCallID: tc.ID, ToolName: tc.Name}
@@ -90,6 +96,12 @@ func sanitizeToolErrorForModel(err error) string {
 		return "Error: no hay ningún proyecto activo abierto para acceder a archivos."
 	case errors.Is(err, domain.ErrFolderNotExist):
 		return "Error: la ruta especificada no existe."
+	case errors.Is(err, domain.ErrEditOldStringNotFound):
+		return "Error: old_string no se encontró en el archivo. Usa read_file para revisar el contenido exacto (indentación y saltos de línea incluidos) y vuelve a intentar edit_file."
+	case errors.Is(err, domain.ErrEditOldStringNotUnique):
+		return "Error: old_string aparece más de una vez en el archivo. Agrega más contexto (líneas antes o después) para que identifique un único lugar."
+	case errors.Is(err, domain.ErrEditOldStringEmpty):
+		return "Error: old_string no puede estar vacío."
 	default:
 		return "Error: no se pudo ejecutar la herramienta solicitada."
 	}
