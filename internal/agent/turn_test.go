@@ -65,6 +65,33 @@ func TestRunExecutesToolsAndPersistsCompletion(t *testing.T) {
 	}
 }
 
+func TestRunInjectsRepoMapAsSystemMessage(t *testing.T) {
+	ws := newTestWorkspace(t)
+	if err := ws.WriteFile("widget.go", "package pkg\n\nfunc Public() {}\n"); err != nil {
+		t.Fatal(err)
+	}
+	var calls int
+	provider := turnProviderFunc(func(_ context.Context, _, model string, messages []domain.ChatMessage, _ []domain.ToolDefinition, emit func(domain.StreamChunk) error) (*domain.ChatCompletionResult, error) {
+		calls++
+		if len(messages) != 2 || messages[0].Role != domain.ChatRoleSystem || !strings.Contains(messages[0].Content, "func Public") {
+			t.Fatalf("esperado mapa del repositorio como primer mensaje de sistema: %#v", messages)
+		}
+		if messages[1].Role != domain.ChatRoleUser || messages[1].Content != "hola" {
+			t.Fatalf("mensaje del usuario original perdido: %#v", messages)
+		}
+		if err := emit(domain.StreamChunk{Type: domain.ChunkTypeContent, Text: "ok"}); err != nil {
+			t.Fatal(err)
+		}
+		return &domain.ChatCompletionResult{Content: "ok", Model: model}, nil
+	})
+	store := &turnMessageStore{}
+	svc := NewService(provider, ws, store, Callbacks{})
+	svc.Run(context.Background(), domain.ChatStreamRequest{SessionID: "s1", MessageID: "m1"}, []domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}})
+	if calls != 1 || len(store.records) != 1 {
+		t.Fatalf("turno inesperado: calls=%d records=%#v", calls, store.records)
+	}
+}
+
 func TestRunPersistsErrorsAndCancellation(t *testing.T) {
 	for _, canceled := range []bool{false, true} {
 		name := "provider error"
