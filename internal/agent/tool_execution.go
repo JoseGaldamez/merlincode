@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/lint"
 )
 
 // ExecuteTools ejecuta secuencialmente las herramientas solicitadas por el modelo en una iteración,
@@ -72,6 +73,13 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 					guidance += " Hay varias alternativas: explica brevemente cada comando, para qué sirve y cuándo elegirlo, usando el campo reason y los archivos inspeccionados. Compara desarrollo, vista previa o inicio de producción cuando corresponda; menciona los requisitos de compilación previa indicados en reason sin afirmar que la compilación ya existe si no lo has comprobado. Recomienda una opción acorde a lo pedido; para trabajar y ver cambios suele corresponder desarrollo. Si las opciones ejecutan distintas aplicaciones, entradas o puertos, explica esas diferencias verificables. Son alternativas, no pasos que deban ejecutarse todos. No deduzcas el modo únicamente por el nombre del script: start puede iniciar desarrollo."
 				}
 				modelContent = guidance + "\n\n" + content
+			}
+		}
+		if (tc.Name == "write_file" || tc.Name == "edit_file") && !isError {
+			if path := summarizeToolArgs(tc.Arguments); path != "" {
+				if diagnostics, ran := lint.Check(ctx, a.workspaceService, path); ran && diagnostics != "" {
+					modelContent = content + "\n\n[Diagnóstico automático tras editar " + path + "]\n" + diagnostics
+				}
 			}
 		}
 		results = append(results, domain.ToolResult{ToolCallID: tc.ID, Name: tc.Name, Content: modelContent, IsError: isError})
