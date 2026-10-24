@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/lint"
 )
 
 // ExecuteTools ejecuta secuencialmente las herramientas solicitadas por el modelo en una iteración,
@@ -28,6 +29,12 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 				if errors.Is(err, context.Canceled) {
 					return results, true
 				}
+				if errors.Is(err, domain.ErrEditOldStringNotFound) || errors.Is(err, domain.ErrEditOldStringNotUnique) || errors.Is(err, domain.ErrEditOldStringEmpty) {
+					msg := sanitizeToolErrorForModel(err)
+					results = append(results, domain.ToolResult{ToolCallID: tc.ID, Name: tc.Name, Content: msg, IsError: true})
+					*trace = append(*trace, domain.ToolTraceEntry{ToolName: tc.Name, Arguments: tc.Arguments, Result: msg, IsError: true})
+					continue
+				}
 				resp.approved = false
 			}
 			approvedPtr = &resp.approved
@@ -48,7 +55,7 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 			content = sanitizeToolErrorForModel(err)
 			isError = true
 		}
-		if tc.Name == "write_file" && !isError {
+		if (tc.Name == "write_file" || tc.Name == "edit_file") && !isError {
 			a.callbacks.WorkspaceChanged()
 		}
 		resultEvent := domain.ChatStreamEvent{SessionID: req.SessionID, MessageID: req.MessageID, Type: domain.ChunkTypeToolResult, ToolCallID: tc.ID, ToolName: tc.Name}
@@ -66,6 +73,13 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 					guidance += " Hay varias alternativas: explica brevemente cada comando, para qué sirve y cuándo elegirlo, usando el campo reason y los archivos inspeccionados. Compara desarrollo, vista previa o inicio de producción cuando corresponda; menciona los requisitos de compilación previa indicados en reason sin afirmar que la compilación ya existe si no lo has comprobado. Recomienda una opción acorde a lo pedido; para trabajar y ver cambios suele corresponder desarrollo. Si las opciones ejecutan distintas aplicaciones, entradas o puertos, explica esas diferencias verificables. Son alternativas, no pasos que deban ejecutarse todos. No deduzcas el modo únicamente por el nombre del script: start puede iniciar desarrollo."
 				}
 				modelContent = guidance + "\n\n" + content
+			}
+		}
+		if (tc.Name == "write_file" || tc.Name == "edit_file") && !isError {
+			if path := summarizeToolArgs(tc.Arguments); path != "" {
+				if diagnostics, ran := lint.Check(ctx, a.workspaceService, path); ran && diagnostics != "" {
+					modelContent = content + "\n\n[Diagnóstico automático tras editar " + path + "]\n" + diagnostics
+				}
 			}
 		}
 		results = append(results, domain.ToolResult{ToolCallID: tc.ID, Name: tc.Name, Content: modelContent, IsError: isError})
@@ -90,6 +104,12 @@ func sanitizeToolErrorForModel(err error) string {
 		return "Error: no hay ningún proyecto activo abierto para acceder a archivos."
 	case errors.Is(err, domain.ErrFolderNotExist):
 		return "Error: la ruta especificada no existe."
+	case errors.Is(err, domain.ErrEditOldStringNotFound):
+		return "Error: old_string no se encontró en el archivo. Usa read_file para revisar el contenido exacto (indentación y saltos de línea incluidos) y vuelve a intentar edit_file."
+	case errors.Is(err, domain.ErrEditOldStringNotUnique):
+		return "Error: old_string aparece más de una vez en el archivo. Agrega más contexto (líneas antes o después) para que identifique un único lugar."
+	case errors.Is(err, domain.ErrEditOldStringEmpty):
+		return "Error: old_string no puede estar vacío."
 	default:
 		return "Error: no se pudo ejecutar la herramienta solicitada."
 	}

@@ -35,6 +35,7 @@ func NewToolRegistry(ws *workspace.Service, extra ...ToolExecutor) *ToolRegistry
 		listFilesTool{ws: ws},
 		getTreeTool{ws: ws},
 		writeFileTool{ws: ws},
+		editFileTool{ws: ws},
 	}
 	executors = append(executors, extra...)
 	byName := make(map[string]ToolExecutor, len(executors))

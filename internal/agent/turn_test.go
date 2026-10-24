@@ -30,7 +30,7 @@ func TestRunExecutesToolsAndPersistsCompletion(t *testing.T) {
 	var calls int
 	provider := turnProviderFunc(func(_ context.Context, provider, model string, messages []domain.ChatMessage, tools []domain.ToolDefinition, emit func(domain.StreamChunk) error) (*domain.ChatCompletionResult, error) {
 		calls++
-		if provider != "test-provider" || model != "test-model" || len(tools) != 4 {
+		if provider != "test-provider" || model != "test-model" || len(tools) != 5 {
 			t.Fatalf("provider configuration lost: %s %s %#v", provider, model, tools)
 		}
 		if calls == 1 {
