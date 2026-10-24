@@ -77,7 +77,8 @@ proyecto y sistema archivos  estado de ventana y paneles     proveedores IA y ll
 - Se puede elegir una carpeta, validar que existe y que permite escritura, y marcarla
   como proyecto activo.
 - El explorador muestra un árbol de profundidad máxima cuatro y excluye directorios
-  como `.git`, `node_modules`, `dist`, `.idea`, `.vscode` y `build`.
+  como `.git`, `node_modules`, `dist`, `.idea`, `.vscode`, `build`, `.venv`, `venv`,
+  `__pycache__` y `target`.
 - Las operaciones `ReadProjectFile` y `WriteProjectFile` existen en Go, pero la UI
   todavía no las usa para editar archivos. El árbol sí abre rutas en el explorador
   nativo.
