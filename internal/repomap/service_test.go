@@ -75,6 +75,49 @@ func TestSnapshotExtraeSimbolosRealesDeGo(t *testing.T) {
 	}
 }
 
+// TestSnapshotExtraeSimbolosDeTodosLosLenguajes es el test de integración de punta a punta para
+// los lenguajes agregados después de Go: un proyecto real en disco con un archivo por extensión
+// registrada debe producir un mapa con los símbolos públicos de cada uno (cada archivo pasa por
+// su propio módulo wasm real vía Service.parserFor) y sin los privados.
+func TestSnapshotExtraeSimbolosDeTodosLosLenguajes(t *testing.T) {
+	ws := newTestWorkspace(t)
+	files := map[string]string{
+		"web/util.js":        "export function jsPublic() {}\nfunction jsPrivate() {}\n",
+		"web/View.jsx":       "export const JsxView = () => <div />;\nconst jsxPrivate = 1;\n",
+		"web/types.ts":       "export interface TsPublic {}\nconst cast = <any>v;\ninterface TsPrivate {}\n",
+		"web/Page.tsx":       "export default function TsxPage() { return <main />; }\nfunction tsxPrivate() {}\n",
+		"tools/script.py":    "def py_public():\n    pass\n\ndef _py_private():\n    pass\n",
+		"crates/core/lib.rs": "pub fn rs_public() {}\nfn rs_private() {}\n",
+	}
+	for path, content := range files {
+		if err := ws.WriteFile(path, content); err != nil {
+			t.Fatalf("WriteFile(%s) falló: %v", path, err)
+		}
+	}
+
+	s := NewService(ws)
+	snapshot := s.Snapshot()
+
+	for path := range files {
+		if !strings.Contains(snapshot, path) {
+			t.Errorf("esperaba que el mapa mencionara %s", path)
+		}
+	}
+	for _, public := range []string{"jsPublic", "JsxView", "TsPublic", "TsxPage", "py_public", "rs_public"} {
+		if !strings.Contains(snapshot, public) {
+			t.Errorf("esperaba el símbolo público %s en el mapa", public)
+		}
+	}
+	for _, private := range []string{"jsPrivate", "jsxPrivate", "TsPrivate", "tsxPrivate", "_py_private", "rs_private"} {
+		if strings.Contains(snapshot, private) {
+			t.Errorf("el mapa no debió incluir el símbolo privado %s", private)
+		}
+	}
+	if t.Failed() {
+		t.Logf("mapa obtenido:\n%s", snapshot)
+	}
+}
+
 // TestSnapshotCacheaHastaInvalidate confirma el contrato de caching: dos llamadas a Snapshot sin
 // Invalidate de por medio deben devolver el mismo texto aunque el archivo subyacente cambie en
 // disco; tras Invalidate, la siguiente llamada debe reconstruir y reflejar el cambio.

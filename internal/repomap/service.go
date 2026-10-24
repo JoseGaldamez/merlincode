@@ -17,7 +17,7 @@ import (
 // fuente del proyecto.
 type Symbol struct {
 	Name string
-	Kind string // "func", "method", "type", "const", "var", ...
+	Kind string // depende del lenguaje: "func", "method", "type", "const", "var", "class", "fn", ...
 	Line int    // 1-based
 }
 
@@ -34,6 +34,16 @@ type languageSupport struct {
 
 var supportedLanguages = []languageSupport{
 	{ext: ".go", wasm: goWasm, extract: extractGoSymbols},
+	// JavaScript y JSX comparten gramática (tree-sitter-javascript incluye JSX). Como parserFor
+	// indexa las instancias por extensión, .js y .jsx instancian cada una su propia copia del
+	// mismo módulo; es correcto, solo cuesta una instancia wasm extra si el proyecto tiene ambas.
+	{ext: ".js", wasm: javascriptWasm, extract: extractJSTSSymbols},
+	{ext: ".jsx", wasm: javascriptWasm, extract: extractJSTSSymbols},
+	// TypeScript y TSX son gramáticas distintas (ver typescript_lang.go), con el mismo extractor.
+	{ext: ".ts", wasm: typescriptWasm, extract: extractJSTSSymbols},
+	{ext: ".tsx", wasm: tsxWasm, extract: extractJSTSSymbols},
+	{ext: ".py", wasm: pythonWasm, extract: extractPythonSymbols},
+	{ext: ".rs", wasm: rustWasm, extract: extractRustSymbols},
 }
 
 const (
