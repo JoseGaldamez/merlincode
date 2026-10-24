@@ -5,6 +5,7 @@ go 1.25.0
 toolchain go1.26.9
 
 require (
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sys v0.47.0

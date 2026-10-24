@@ -57,6 +57,7 @@ func (a *Service) ExecuteTools(ctx context.Context, req domain.ChatStreamRequest
 		}
 		if (tc.Name == "write_file" || tc.Name == "edit_file") && !isError {
 			a.callbacks.WorkspaceChanged()
+			a.repoMapService.Invalidate()
 		}
 		resultEvent := domain.ChatStreamEvent{SessionID: req.SessionID, MessageID: req.MessageID, Type: domain.ChunkTypeToolResult, ToolCallID: tc.ID, ToolName: tc.Name}
 		if isError {
