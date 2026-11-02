@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/workspace"
 )
 
 const toolApprovalTimeout = 10 * time.Minute
@@ -33,19 +34,16 @@ type pendingApproval struct {
 func (a *Service) awaitToolApproval(ctx context.Context, req domain.ChatStreamRequest, tc domain.ToolCall) (approvalResponse, error) {
 	requestID := fmt.Sprintf("approval-%s-%d", tc.ID, time.Now().UnixNano())
 
-	var args struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+	path, oldContent, newContent, err := approvalPreview(a.workspaceService, tc)
+	if err != nil {
+		return approvalResponse{approved: false}, err
 	}
-	_ = json.Unmarshal([]byte(tc.Arguments), &args)
-
-	oldContent, _ := a.workspaceService.ReadFile(args.Path)
 
 	approvalReq := domain.ToolApprovalRequest{
 		RequestID:  requestID,
 		ToolName:   tc.Name,
-		Path:       args.Path,
-		NewContent: args.Content,
+		Path:       path,
+		NewContent: newContent,
 		OldContent: oldContent,
 		ExpiresAt:  time.Now().Add(toolApprovalTimeout).UnixMilli(),
 	}
@@ -115,6 +113,33 @@ func (a *Service) RespondToToolApproval(requestID string, approved bool, editedC
 	default:
 	}
 	return nil
+}
+
+// approvalPreview calcula la ruta, el contenido actual y el contenido propuesto para mostrar en la
+// tarjeta de aprobación, según la herramienta de escritura invocada (write_file o edit_file). Para
+// edit_file, intenta aplicar el reemplazo para mostrar el diff real que resultaría de aprobar; si
+// old_string no coincide de forma única, devuelve el error sin emitir ninguna tarjeta, de modo que
+// el modelo reciba el motivo concreto en vez de que el usuario apruebe o rechace una vista previa rota.
+func approvalPreview(ws *workspace.Service, tc domain.ToolCall) (path, oldContent, newContent string, err error) {
+	if tc.Name == "edit_file" {
+		var args struct {
+			Path      string `json:"path"`
+			OldString string `json:"old_string"`
+			NewString string `json:"new_string"`
+		}
+		_ = json.Unmarshal([]byte(tc.Arguments), &args)
+		oldContent, _ = ws.ReadFile(args.Path)
+		newContent, err = applyUniqueReplace(oldContent, args.OldString, args.NewString)
+		return args.Path, oldContent, newContent, err
+	}
+
+	var args struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	_ = json.Unmarshal([]byte(tc.Arguments), &args)
+	oldContent, _ = ws.ReadFile(args.Path)
+	return args.Path, oldContent, args.Content, nil
 }
 
 // withEditedContent reemplaza el campo "content" de los argumentos JSON crudos de una tool call de

@@ -71,4 +71,13 @@ var (
 
 	// ErrMaxToolIterationsExceeded indica que el turno del agente alcanzó el límite de iteraciones de herramientas.
 	ErrMaxToolIterationsExceeded = errors.New("se alcanzó el límite máximo de iteraciones de herramientas en este turno")
+
+	// ErrEditOldStringNotFound indica que old_string no aparece en el archivo objetivo de edit_file.
+	ErrEditOldStringNotFound = errors.New("old_string no se encontró en el archivo")
+
+	// ErrEditOldStringNotUnique indica que old_string aparece más de una vez en el archivo objetivo de edit_file.
+	ErrEditOldStringNotUnique = errors.New("old_string aparece más de una vez en el archivo")
+
+	// ErrEditOldStringEmpty indica que edit_file recibió old_string vacío, lo cual no permite una coincidencia única con sentido.
+	ErrEditOldStringEmpty = errors.New("old_string no puede estar vacío")
 )
