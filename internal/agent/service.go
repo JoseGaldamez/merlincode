@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"merlincode/internal/domain"
+	"merlincode/internal/repomap"
 	"merlincode/internal/workspace"
 )
 
@@ -46,6 +47,7 @@ type Service struct {
 	extraTools         []ToolExecutor
 	pendingApprovalsMu sync.Mutex
 	pendingApprovals   map[string]*pendingApproval
+	repoMapService     *repomap.Service
 }
 
 func NewService(provider ChatProvider, ws *workspace.Service, messages MessageStore, callbacks Callbacks, extra ...ToolExecutor) *Service {
@@ -68,6 +70,7 @@ func NewService(provider ChatProvider, ws *workspace.Service, messages MessageSt
 		callbacks:         callbacks,
 		extraTools:        append([]ToolExecutor(nil), extra...),
 		pendingApprovals:  make(map[string]*pendingApproval),
+		repoMapService:    repomap.NewService(ws),
 	}
 }
 
@@ -78,6 +81,10 @@ func (a *Service) Run(ctx context.Context, req domain.ChatStreamRequest, message
 	streamStartTime := time.Now()
 	registry := NewToolRegistry(a.workspaceService, a.extraTools...)
 	tools := registry.Definitions()
+
+	if repoMap := a.repoMapService.Snapshot(); repoMap != "" {
+		messages = append([]domain.ChatMessage{{Role: domain.ChatRoleSystem, Content: repoMap}}, messages...)
+	}
 
 	var fullContent strings.Builder
 	var fullThinking strings.Builder
