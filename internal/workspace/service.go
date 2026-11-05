@@ -23,6 +23,10 @@ var ignoredDirNames = map[string]bool{
 	".idea":        true,
 	".vscode":      true,
 	"build":        true,
+	".venv":        true,
+	"venv":         true,
+	"__pycache__":  true,
+	"target":       true,
 }
 
 // Service administra las operaciones sobre la carpeta activa del proyecto y su árbol de archivos
