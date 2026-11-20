@@ -46,6 +46,10 @@ export function GetSessionMessages(arg1) {
   return window['go']['app']['App']['GetSessionMessages'](arg1);
 }
 
+export function GetTodayAIUsage(arg1) {
+  return window['go']['app']['App']['GetTodayAIUsage'](arg1);
+}
+
 export function Greet(arg1) {
   return window['go']['app']['App']['Greet'](arg1);
 }
@@ -84,6 +88,10 @@ export function PrepareAppRun(arg1) {
 
 export function ReadProjectFile(arg1) {
   return window['go']['app']['App']['ReadProjectFile'](arg1);
+}
+
+export function ReadProjectFilePreview(arg1, arg2) {
+  return window['go']['app']['App']['ReadProjectFilePreview'](arg1, arg2);
 }
 
 export function RemoveAppRun(arg1) {

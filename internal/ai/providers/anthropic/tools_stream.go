@@ -25,11 +25,14 @@ type anthropicContentBlock struct {
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   string          `json:"content,omitempty"`
 	IsError   bool            `json:"is_error,omitempty"`
+	Thinking  *string         `json:"thinking,omitempty"`
+	Signature string          `json:"signature,omitempty"`
+	Data      string          `json:"data,omitempty"`
 }
 
 type anthropicToolsMsg struct {
-	Role    string                  `json:"role"`
-	Content []anthropicContentBlock `json:"content"`
+	Role    string `json:"role"`
+	Content any    `json:"content"`
 }
 
 // anthropicTool es la traducción de domain.ToolDefinition al wire format de Anthropic.
@@ -40,38 +43,30 @@ type anthropicTool struct {
 }
 
 type anthropicToolsStreamEvent struct {
-	Type         string `json:"type"`
-	Index        int    `json:"index"`
-	ContentBlock *struct {
-		Type string `json:"type"`
-		ID   string `json:"id,omitempty"`
-		Name string `json:"name,omitempty"`
-	} `json:"content_block,omitempty"`
-	Delta *struct {
+	Type         string                 `json:"type"`
+	Index        int                    `json:"index"`
+	ContentBlock *anthropicContentBlock `json:"content_block,omitempty"`
+	Delta        *struct {
 		Type        string `json:"type"`
 		Text        string `json:"text,omitempty"`
 		Thinking    string `json:"thinking,omitempty"`
 		PartialJSON string `json:"partial_json,omitempty"`
+		Signature   string `json:"signature,omitempty"`
 	} `json:"delta,omitempty"`
 	Message *struct {
-		Usage struct {
-			InputTokens int64 `json:"input_tokens"`
-		} `json:"usage"`
+		Usage *anthropicUsage `json:"usage"`
 	} `json:"message,omitempty"`
-	Usage *struct {
-		OutputTokens int64 `json:"output_tokens"`
-	} `json:"usage,omitempty"`
+	Usage *anthropicUsage `json:"usage,omitempty"`
 	Error *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
 }
 
-// pendingToolUse acumula los fragmentos input_json_delta de un bloque tool_use en curso.
-type pendingToolUse struct {
-	id      string
-	name    string
-	builder strings.Builder
+type pendingContentBlock struct {
+	content   anthropicContentBlock
+	delta     strings.Builder
+	signature strings.Builder
 }
 
 // StreamChatWithTools realiza una llamada en streaming vía SSE a Anthropic ofreciendo herramientas
@@ -90,7 +85,7 @@ func (Client) StreamChatWithTools(
 		return nil, errors.New("la clave de API de Anthropic no puede estar vacía")
 	}
 	if model == "" {
-		model = "claude-sonnet-5"
+		model = defaultModel
 	}
 
 	var reqMessages []anthropicToolsMsg
@@ -109,6 +104,10 @@ func (Client) StreamChatWithTools(
 		role := "user"
 		if m.Role == domain.ChatRoleAssistant {
 			role = "assistant"
+			if len(m.ProviderContent) > 0 {
+				reqMessages = append(reqMessages, anthropicToolsMsg{Role: role, Content: m.ProviderContent})
+				continue
+			}
 		}
 
 		var blocks []anthropicContentBlock
@@ -213,9 +212,9 @@ func (Client) StreamChatWithTools(
 
 	var totalText strings.Builder
 	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
-	pendingTools := make(map[int]*pendingToolUse)
+	var usage anthropicUsage
+	pendingBlocks := make(map[int]*pendingContentBlock)
+	var assistantBlocks []anthropicContentBlock
 	var toolCalls []domain.ToolCall
 
 	for scanner.Scan() {
@@ -234,16 +233,14 @@ func (Client) StreamChatWithTools(
 		}
 
 		if event.Message != nil {
-			promptTokens = event.Message.Usage.InputTokens
+			usage.merge(event.Message.Usage)
 		}
-		if event.Usage != nil {
-			completionTokens = event.Usage.OutputTokens
-		}
+		usage.merge(event.Usage)
 
 		switch event.Type {
 		case "content_block_start":
-			if event.ContentBlock != nil && event.ContentBlock.Type == "tool_use" {
-				pendingTools[event.Index] = &pendingToolUse{id: event.ContentBlock.ID, name: event.ContentBlock.Name}
+			if event.ContentBlock != nil {
+				pendingBlocks[event.Index] = &pendingContentBlock{content: *event.ContentBlock}
 			}
 		case "content_block_delta":
 			if event.Delta == nil {
@@ -265,26 +262,51 @@ func (Client) StreamChatWithTools(
 					}
 				}
 			}
-			if event.Delta.PartialJSON != "" {
-				if p, ok := pendingTools[event.Index]; ok {
-					p.builder.WriteString(event.Delta.PartialJSON)
-				}
+			if block := pendingBlocks[event.Index]; block != nil {
+				block.delta.WriteString(event.Delta.Text)
+				block.delta.WriteString(event.Delta.Thinking)
+				block.delta.WriteString(event.Delta.PartialJSON)
+				block.signature.WriteString(event.Delta.Signature)
 			}
 		case "content_block_stop":
-			if p, ok := pendingTools[event.Index]; ok {
-				args := p.builder.String()
-				if args == "" {
-					args = "{}"
+			block := pendingBlocks[event.Index]
+			if block == nil {
+				continue
+			}
+			delete(pendingBlocks, event.Index)
+			content := block.content
+			switch content.Type {
+			case "text":
+				content.Text += block.delta.String()
+				if content.Text == "" {
+					continue
 				}
-				tc := domain.ToolCall{ID: p.id, Name: p.name, Arguments: args}
+			case "thinking":
+				thinking := block.delta.String()
+				if content.Thinking != nil {
+					thinking = *content.Thinking + thinking
+				}
+				content.Thinking = &thinking
+				content.Signature += block.signature.String()
+			case "tool_use":
+				if block.delta.Len() > 0 {
+					content.Input = json.RawMessage(block.delta.String())
+				}
+				if len(content.Input) == 0 {
+					content.Input = json.RawMessage("{}")
+				}
+				if !json.Valid(content.Input) {
+					return nil, errors.New("Anthropic devolvió argumentos inválidos para una herramienta")
+				}
+				tc := domain.ToolCall{ID: content.ID, Name: content.Name, Arguments: string(content.Input)}
 				toolCalls = append(toolCalls, tc)
 				if onChunk != nil {
 					if err := onChunk(StreamChunk{Type: domain.ChunkTypeToolCall, ToolCall: &tc}); err != nil {
 						return nil, err
 					}
 				}
-				delete(pendingTools, event.Index)
 			}
+			assistantBlocks = append(assistantBlocks, content)
 		}
 	}
 
@@ -295,12 +317,23 @@ func (Client) StreamChatWithTools(
 		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-		ToolCalls:        toolCalls,
-	}, nil
+	var providerContent json.RawMessage
+	if len(toolCalls) > 0 {
+		// La siguiente vuelta debe devolver los bloques firmados en su orden original.
+		var err error
+		providerContent, err = json.Marshal(assistantBlocks)
+		if err != nil {
+			return nil, fmt.Errorf("error codificando respuesta de Anthropic: %w", err)
+		}
+	}
+
+	result := &domain.ChatCompletionResult{
+		Content:         totalText.String(),
+		Thinking:        totalThinking.String(),
+		Model:           model,
+		ToolCalls:       toolCalls,
+		ProviderContent: providerContent,
+	}
+	usage.apply(result)
+	return result, nil
 }

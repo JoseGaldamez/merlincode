@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { ToolActivityEntry } from '../../../types';
 import { IconChevronDown, IconChevronRight, IconFile, IconCheck, IconClose } from '../../../components/Icons';
 
@@ -21,44 +21,46 @@ const StatusIcon: React.FC<{ status: ToolActivityEntry['status'] }> = ({ status 
 };
 
 export const ToolActivityPanel: React.FC<ToolActivityPanelProps> = ({ activity }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const panelId = useId();
 
   if (!activity || activity.length === 0) return null;
 
   return (
-    <div className="w-full mb-2.5 rounded-lg border border-border-petrol bg-surface-neutral overflow-hidden">
+    <div className="w-full mb-1">
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-content-muted hover:text-content-body hover:bg-surface-hover transition-colors cursor-pointer text-left"
+        className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-content-dim hover:text-content-body hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent-primary transition-colors"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
         onClick={() => setIsOpen((prev) => !prev)}
       >
-        {isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-        <span className="text-[11px] font-mono text-accent-cyan tracking-wider font-semibold">
-          ACTIVIDAD DE HERRAMIENTAS
+        <span aria-hidden="true">
+          {isOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
         </span>
+        <span>Actividad de herramientas</span>
+        <span className="font-mono text-[11px]">({activity.length})</span>
       </button>
-      {isOpen && (
-        <div className="border-t border-border-petrol divide-y divide-border-petrol/60">
-          {activity.map((entry) => (
+      <div id={panelId} hidden={!isOpen} className="mt-1 overflow-hidden rounded-md border border-border-subtle bg-surface-lowest divide-y divide-border-subtle">
+        {isOpen && activity.map((entry) => (
             <div key={entry.toolCallId}>
-            <div
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-mono bg-surface-lowest"
-            >
-              <IconFile size={13} className="text-content-dim shrink-0" />
-              <span className="text-content-body font-semibold shrink-0">{entry.toolName}</span>
-              {entry.argsSummary && (
-                <span className="text-content-dim truncate">{entry.argsSummary}</span>
-              )}
-              <span className="ml-auto flex items-center gap-1.5 text-content-dim shrink-0">
-                <StatusIcon status={entry.status} />
-                <span>{STATUS_LABEL[entry.status]}</span>
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2.5 py-1.5 text-[11px] font-mono">
+                <div className="flex min-w-0 items-center gap-2">
+                  <IconFile size={12} className="text-content-dim shrink-0" />
+                  <span className="text-content-muted shrink-0">{entry.toolName}</span>
+                  {entry.argsSummary && (
+                    <span className="text-content-dim truncate">{entry.argsSummary}</span>
+                  )}
+                </div>
+                <span className="flex items-center gap-1.5 text-content-dim">
+                  <StatusIcon status={entry.status} />
+                  <span>{STATUS_LABEL[entry.status]}</span>
+                </span>
+              </div>
+              {entry.error && <p role="alert" className="px-2.5 pb-2 text-xs leading-relaxed text-red-300 break-words">{entry.error}</p>}
             </div>
-            {entry.error && <p role="alert" className="px-3 pb-2 text-xs leading-relaxed text-red-300 break-words">{entry.error}</p>}
-            </div>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };

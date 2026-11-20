@@ -12,6 +12,7 @@ export interface ChatAreaProps {
   streamingStatusText?: string;
   activeProjectName?: string;
   onOpenFolder?: () => void;
+  onPreviewFile?: (path: string) => void;
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike' | null) => void;
   onResolveApproval?: (messageId: string, requestId: string, approved: boolean, editedContent?: string) => void;
   activeModel?: string;
@@ -25,6 +26,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   streamingStatusText,
   activeProjectName,
   onOpenFolder,
+  onPreviewFile,
   onFeedback,
   onResolveApproval,
   activeModel,
@@ -55,6 +57,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 key={msg.id}
                 message={msg}
                 onOpenFolder={onOpenFolder}
+                onPreviewFile={onPreviewFile}
                 onFeedback={onFeedback}
                 onResolveApproval={onResolveApproval}
               />

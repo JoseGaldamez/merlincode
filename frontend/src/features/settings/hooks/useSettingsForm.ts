@@ -79,8 +79,10 @@ export function parseAndSanitizeSettings(raw: unknown): {
   const providerConfig = getProviderConfig(validProvider);
 
   const rawModel = typeof record.model === 'string' ? record.model : '';
+  // DeepSeek V4 Pro sigue en el catálogo, pero era el modelo automático de versiones anteriores.
+  const isPreviousDefault = validProvider === 'deepseek' && rawModel === 'deepseek-v4-pro';
   const isModelValid = providerConfig.models.some((m) => m.id === rawModel);
-  const activeModel = isModelValid ? rawModel : providerConfig.defaultModel;
+  const activeModel = isModelValid && !isPreviousDefault ? rawModel : providerConfig.defaultModel;
 
   const temp =
     typeof record.temperature === 'number' && !Number.isNaN(record.temperature)

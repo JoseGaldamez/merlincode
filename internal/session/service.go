@@ -92,8 +92,20 @@ func (s *Service) initSchema() error {
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS message_usage (
+		message_id TEXT PRIMARY KEY,
+		provider_id TEXT NOT NULL,
+		completed_at INTEGER NOT NULL,
+		tokens_prompt INTEGER NOT NULL,
+		tokens_completion INTEGER NOT NULL,
+		cost_nanos_usd INTEGER,
+		cost_partial INTEGER NOT NULL,
+		requests INTEGER NOT NULL
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id, created_at ASC);
 	CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_message_usage_day ON message_usage(provider_id, completed_at);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -299,11 +311,12 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 	}
 
 	query := `
-	SELECT id, session_id, role, content, thought_chain, provider_id, model_id,
-	       tokens_prompt, tokens_completion, duration_seconds, feedback, status, created_at, tool_trace
-	FROM messages
-	WHERE session_id = ?
-	ORDER BY created_at ASC;
+	SELECT m.id, m.session_id, m.role, m.content, m.thought_chain, m.provider_id, m.model_id,
+	       m.tokens_prompt, m.tokens_completion, m.duration_seconds, m.feedback, m.status, m.created_at, m.tool_trace,
+	       u.cost_nanos_usd, u.cost_partial, u.requests
+	FROM messages m LEFT JOIN message_usage u ON u.message_id = m.id
+	WHERE m.session_id = ?
+	ORDER BY m.created_at ASC;
 	`
 	rows, err := s.db.QueryContext(ctx, query, sessionID)
 	if err != nil {
@@ -317,6 +330,8 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 		var roleStr string
 		var fb sql.NullString
 		var toolTraceJSON string
+		var amount, requests sql.NullInt64
+		var partial sql.NullBool
 
 		if err := rows.Scan(
 			&m.ID,
@@ -333,11 +348,20 @@ func (s *Service) GetSessionMessages(ctx context.Context, sessionID string) ([]d
 			&m.Status,
 			&m.CreatedAt,
 			&toolTraceJSON,
+			&amount,
+			&partial,
+			&requests,
 		); err != nil {
 			return nil, fmt.Errorf("error al leer mensaje de base de datos: %w", err)
 		}
 
 		m.Role = domain.ChatRole(roleStr)
+		if requests.Valid {
+			m.Cost = &domain.TurnCost{Requests: int(requests.Int64), Partial: partial.Bool}
+			if amount.Valid {
+				m.Cost.NanosUSD = &amount.Int64
+			}
+		}
 		if fb.Valid {
 			m.Feedback = &fb.String
 		}
@@ -384,13 +408,22 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		msg.CreatedAt = time.Now().UTC()
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	// Asegurar que la sesión exista
 	now := time.Now().UTC()
-	_, _ = s.db.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO sessions (id, title, created_at, updated_at)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at;
 	`, msg.SessionID, "Conversación", now, now)
+	if err != nil {
+		return fmt.Errorf("error al actualizar la sesión: %w", err)
+	}
 
 	var fb sql.NullString
 	if msg.Feedback != nil && *msg.Feedback != "" {
@@ -423,7 +456,7 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		status = excluded.status,
 		tool_trace = excluded.tool_trace;
 	`
-	_, err := s.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, query,
 		msg.ID,
 		msg.SessionID,
 		string(msg.Role),
@@ -443,10 +476,44 @@ func (s *Service) SaveMessage(ctx context.Context, msg domain.ChatMessageRecord)
 		return fmt.Errorf("error al guardar mensaje en base de datos: %w", err)
 	}
 
-	// Actualizar updated_at en la sesión
-	_, _ = s.db.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE id = ?;`, now, msg.SessionID)
+	if msg.Role == domain.ChatRoleAssistant && msg.Cost != nil {
+		// Cost totals survive deletion of a conversation. This entry contains no message content.
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO message_usage (
+				message_id, provider_id, completed_at, tokens_prompt, tokens_completion, cost_nanos_usd, cost_partial, requests
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(message_id) DO NOTHING;
+		`, msg.ID, msg.ProviderID, msg.CreatedAt.Unix(), msg.TokensPrompt, msg.TokensCompletion,
+			msg.Cost.NanosUSD, msg.Cost.Partial, msg.Cost.Requests)
+		if err != nil {
+			return fmt.Errorf("error al guardar el consumo del turno: %w", err)
+		}
+	}
+	return tx.Commit()
+}
 
-	return nil
+func (s *Service) GetTodayAIUsage(ctx context.Context, providerID string, now time.Time) (domain.DailyProviderUsage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	end := start.AddDate(0, 0, 1)
+	var result domain.DailyProviderUsage
+	var amount sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(tokens_prompt), 0), COALESCE(SUM(tokens_completion), 0),
+		       SUM(cost_nanos_usd), COALESCE(MAX(cost_partial), 0), COALESCE(SUM(requests), 0)
+		FROM message_usage
+		WHERE provider_id = ? AND completed_at >= ? AND completed_at < ?;
+	`, providerID, start.Unix(), end.Unix()).Scan(
+		&result.TokensPrompt, &result.TokensCompletion, &amount, &result.Cost.Partial, &result.Cost.Requests)
+	if err != nil {
+		return domain.DailyProviderUsage{}, fmt.Errorf("error al consultar el consumo local de hoy: %w", err)
+	}
+	if amount.Valid {
+		result.Cost.NanosUSD = &amount.Int64
+	}
+	return result, nil
 }
 
 // UpdateMessageFeedback guarda o elimina la calificación ("like" o "dislike") de un mensaje específico.

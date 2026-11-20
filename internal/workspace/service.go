@@ -135,38 +135,56 @@ func (s *Service) WriteFile(relativePath string, content string) error {
 func (s *Service) ReadFile(relativePath string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	data, err := s.readFileLocked(relativePath)
+	return string(data), err
+}
+
+// ReadFilePreview keeps the expected project and its root fixed for the entire read.
+func (s *Service) ReadFilePreview(projectDir, path string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.activeProjectDir == "" {
+		return nil, domain.ErrNoActiveProject
+	}
+	if projectDir != s.activeProjectDir {
+		return nil, domain.ErrAccessDenied
+	}
+	return s.readFileLocked(path)
+}
+
+func (s *Service) readFileLocked(relativePath string) ([]byte, error) {
 	activeDir := s.activeProjectDir
 
 	fullPath, err := ValidatePathInProject(activeDir, relativePath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	name, err := filepath.Rel(activeDir, fullPath)
 	if err != nil {
-		return "", domain.ErrAccessDenied
+		return nil, domain.ErrAccessDenied
 	}
 	f, err := s.root.Open(name)
 	if err != nil {
-		return "", domain.ErrAccessDenied
+		return nil, domain.ErrAccessDenied
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		return "", domain.ErrAccessDenied
+		return nil, domain.ErrAccessDenied
 	}
 	if info.Size() > MaxFileBytes {
-		return "", domain.ErrFileTooLarge
+		return nil, domain.ErrFileTooLarge
 	}
 	data, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("error leyendo archivo: %w", err)
+		return nil, fmt.Errorf("error leyendo archivo: %w", err)
 	}
 
 	if len(data) > MaxFileBytes {
-		return "", domain.ErrFileTooLarge
+		return nil, domain.ErrFileTooLarge
 	}
-	return string(data), nil
+	return data, nil
 }
 
 // ListFiles retorna los archivos y carpetas directamente en la raíz del proyecto activo

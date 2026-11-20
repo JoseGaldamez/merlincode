@@ -26,13 +26,9 @@ type anthropicStreamEvent struct {
 		Thinking string `json:"thinking,omitempty"`
 	} `json:"delta,omitempty"`
 	Message *struct {
-		Usage struct {
-			InputTokens int64 `json:"input_tokens"`
-		} `json:"usage"`
+		Usage *anthropicUsage `json:"usage"`
 	} `json:"message,omitempty"`
-	Usage *struct {
-		OutputTokens int64 `json:"output_tokens"`
-	} `json:"usage,omitempty"`
+	Usage *anthropicUsage `json:"usage,omitempty"`
 	Error *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
@@ -53,7 +49,7 @@ func (Client) StreamChat(
 		return nil, errors.New("la clave de API de Anthropic no puede estar vacía")
 	}
 	if model == "" {
-		model = "claude-sonnet-5"
+		model = defaultModel
 	}
 
 	type anthropicMsg struct {
@@ -144,8 +140,7 @@ func (Client) StreamChat(
 
 	var totalText strings.Builder
 	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
+	var usage anthropicUsage
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -164,11 +159,9 @@ func (Client) StreamChat(
 		}
 
 		if event.Message != nil {
-			promptTokens = event.Message.Usage.InputTokens
+			usage.merge(event.Message.Usage)
 		}
-		if event.Usage != nil {
-			completionTokens = event.Usage.OutputTokens
-		}
+		usage.merge(event.Usage)
 
 		if event.Delta != nil {
 			if event.Delta.Thinking != "" {
@@ -203,11 +196,11 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-	}, nil
+	result := &domain.ChatCompletionResult{
+		Content:  totalText.String(),
+		Thinking: totalThinking.String(),
+		Model:    model,
+	}
+	usage.apply(result)
+	return result, nil
 }

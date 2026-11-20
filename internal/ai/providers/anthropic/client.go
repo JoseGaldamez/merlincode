@@ -17,6 +17,8 @@ import (
 // Client verifica credenciales, consulta consumo y envía mensajes a Anthropic.
 type Client struct{}
 
+const defaultModel = "claude-sonnet-5-5"
+
 type anthropicModelsResponse struct {
 	Data []struct {
 		ID string `json:"id"`
@@ -149,7 +151,10 @@ func fetchAnthropicUsageTotals(ctx context.Context, adminKey string, startingAt 
 type anthropicMessagesRequest struct {
 	Model     string `json:"model"`
 	MaxTokens int    `json:"max_tokens"`
-	Messages  []struct {
+	Thinking  *struct {
+		Type string `json:"type"`
+	} `json:"thinking,omitempty"`
+	Messages []struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"messages"`
@@ -177,10 +182,16 @@ func (Client) SendTestMessage(ctx context.Context, apiKey string, message string
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "claude-sonnet-5"
+		model = defaultModel
 	}
 
 	reqBody := anthropicMessagesRequest{Model: model, MaxTokens: 256}
+	if model == defaultModel {
+		// Sonnet 5.5 omite el razonamiento inicial en las pruebas sin herramientas.
+		reqBody.Thinking = &struct {
+			Type string `json:"type"`
+		}{Type: "between_tools"}
+	}
 	reqBody.Messages = []struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
@@ -275,5 +286,5 @@ func fetchAnthropicCostTotal(ctx context.Context, adminKey string, startingAt st
 			}
 		}
 	}
-	return total, nil
+	return total / 100, nil
 }

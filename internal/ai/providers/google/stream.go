@@ -28,12 +28,8 @@ type googleStreamResponse struct {
 			Role string `json:"role"`
 		} `json:"content"`
 	} `json:"candidates"`
-	UsageMetadata *struct {
-		PromptTokenCount     int64 `json:"promptTokenCount"`
-		CandidatesTokenCount int64 `json:"candidatesTokenCount"`
-		TotalTokenCount      int64 `json:"totalTokenCount"`
-	} `json:"usageMetadata,omitempty"`
-	Error *struct {
+	UsageMetadata *geminiUsage `json:"usageMetadata,omitempty"`
+	Error         *struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Status  string `json:"status"`
@@ -54,7 +50,7 @@ func (Client) StreamChat(
 		return nil, errors.New("la clave de API de Google Gemini no puede estar vacía")
 	}
 	if model == "" {
-		model = "gemini-3.8-flash"
+		model = defaultModel
 	}
 
 	// Mapear historial al formato de Google Gemini ("user" / "model")
@@ -86,10 +82,8 @@ func (Client) StreamChat(
 		Contents         []geminiContent         `json:"contents"`
 		GenerationConfig *googleGenerationConfig `json:"generationConfig,omitempty"`
 	}{
-		Contents: contents,
-		GenerationConfig: &googleGenerationConfig{
-			MaxOutputTokens: 4096,
-		},
+		Contents:         contents,
+		GenerationConfig: generationConfig(model, 4096),
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -135,8 +129,7 @@ func (Client) StreamChat(
 
 	var totalText strings.Builder
 	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
+	var usage *geminiUsage
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -159,8 +152,7 @@ func (Client) StreamChat(
 		}
 
 		if chunkResp.UsageMetadata != nil {
-			promptTokens = chunkResp.UsageMetadata.PromptTokenCount
-			completionTokens = chunkResp.UsageMetadata.CandidatesTokenCount
+			usage = chunkResp.UsageMetadata
 		}
 
 		for _, cand := range chunkResp.Candidates {
@@ -197,11 +189,11 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-	}, nil
+	result := &domain.ChatCompletionResult{
+		Content:  totalText.String(),
+		Thinking: totalThinking.String(),
+		Model:    model,
+	}
+	usage.apply(result)
+	return result, nil
 }

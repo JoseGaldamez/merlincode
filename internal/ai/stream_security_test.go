@@ -125,7 +125,10 @@ func TestAllStreamProvidersBoundBodiesAndSanitizeErrors(t *testing.T) {
 					}
 					field := "max_tokens"
 					if id == "openai" {
-						field = "max_completion_tokens"
+						field = "max_output_tokens"
+						if req.URL.Path != "/v1/responses" || payload["store"] != false {
+							t.Fatal("OpenAI chat must use stateless Responses")
+						}
 					}
 					if id == "google" {
 						if payload["generationConfig"].(map[string]any)["maxOutputTokens"] != float64(4096) {

@@ -60,12 +60,8 @@ type googleToolsStreamResponse struct {
 			Role  string           `json:"role"`
 		} `json:"content"`
 	} `json:"candidates"`
-	UsageMetadata *struct {
-		PromptTokenCount     int64 `json:"promptTokenCount"`
-		CandidatesTokenCount int64 `json:"candidatesTokenCount"`
-		TotalTokenCount      int64 `json:"totalTokenCount"`
-	} `json:"usageMetadata,omitempty"`
-	Error *struct {
+	UsageMetadata *geminiUsage `json:"usageMetadata,omitempty"`
+	Error         *struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Status  string `json:"status"`
@@ -91,7 +87,7 @@ func (Client) StreamChatWithTools(
 		return nil, errors.New("la clave de API de Google Gemini no puede estar vacía")
 	}
 	if model == "" {
-		model = "gemini-3.8-flash"
+		model = defaultModel
 	}
 
 	var contents []geminiToolContent
@@ -166,11 +162,9 @@ func (Client) StreamChatWithTools(
 		Tools            []geminiTool            `json:"tools,omitempty"`
 		GenerationConfig *googleGenerationConfig `json:"generationConfig,omitempty"`
 	}{
-		Contents: contents,
-		Tools:    reqTools,
-		GenerationConfig: &googleGenerationConfig{
-			MaxOutputTokens: 4096,
-		},
+		Contents:         contents,
+		Tools:            reqTools,
+		GenerationConfig: generationConfig(model, 4096),
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -216,8 +210,7 @@ func (Client) StreamChatWithTools(
 
 	var totalText strings.Builder
 	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
+	var usage *geminiUsage
 	var toolCalls []domain.ToolCall
 	toolCallCounter := 0
 
@@ -242,8 +235,7 @@ func (Client) StreamChatWithTools(
 		}
 
 		if chunkResp.UsageMetadata != nil {
-			promptTokens = chunkResp.UsageMetadata.PromptTokenCount
-			completionTokens = chunkResp.UsageMetadata.CandidatesTokenCount
+			usage = chunkResp.UsageMetadata
 		}
 
 		for _, cand := range chunkResp.Candidates {
@@ -300,12 +292,12 @@ func (Client) StreamChatWithTools(
 		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-		ToolCalls:        toolCalls,
-	}, nil
+	result := &domain.ChatCompletionResult{
+		Content:   totalText.String(),
+		Thinking:  totalThinking.String(),
+		Model:     model,
+		ToolCalls: toolCalls,
+	}
+	usage.apply(result)
+	return result, nil
 }

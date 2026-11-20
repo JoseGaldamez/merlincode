@@ -38,7 +38,7 @@ data: {"candidates":[{"content":{"role":"model","parts":[{"text":"el archivo."}]
 
 data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"read_file","args":{"path":"src/main.go"}},"thoughtSignature":"sig-abc"}]}}]}
 
-data: {"candidates":[{"content":{"role":"model","parts":[]}}],"usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":9,"totalTokenCount":34}}
+data: {"candidates":[{"content":{"role":"model","parts":[]}}],"usageMetadata":{"promptTokenCount":25,"cachedContentTokenCount":4,"toolUsePromptTokenCount":2,"candidatesTokenCount":9,"thoughtsTokenCount":3,"totalTokenCount":39}}
 
 `
 
@@ -96,7 +96,7 @@ func TestStreamChatWithTools_ParsesUnfragmentedFunctionCallArgs(t *testing.T) {
 		t.Fatalf("ToolCalls del resultado final inesperadas: %+v", result.ToolCalls)
 	}
 
-	if result.TokensPrompt != 25 || result.TokensCompletion != 9 {
+	if result.TokensPrompt != 27 || result.TokensCompletion != 12 || result.Usage == nil || result.Usage.CacheRead != 4 {
 		t.Fatalf("conteo de tokens inesperado: prompt=%d completion=%d", result.TokensPrompt, result.TokensCompletion)
 	}
 }

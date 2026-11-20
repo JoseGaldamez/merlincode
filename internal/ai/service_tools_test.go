@@ -49,7 +49,7 @@ func TestStreamChatWithTools_DispatchesToToolCaller(t *testing.T) {
 		fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
 		result: &domain.ChatCompletionResult{
 			Content: "listo",
-			Model:   "claude-sonnet-5",
+			Model:   "claude-sonnet-5-5",
 			ToolCalls: []domain.ToolCall{
 				{ID: "call-1", Name: "read_file", Arguments: `{"path":"a.txt"}`},
 			},
@@ -64,7 +64,7 @@ func TestStreamChatWithTools_DispatchesToToolCaller(t *testing.T) {
 	result, err := svc.StreamChatWithTools(
 		context.Background(),
 		"anthropic",
-		"claude-sonnet-5",
+		"claude-sonnet-5-5",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}},
 		tools,
 		nil,
@@ -83,7 +83,7 @@ func TestStreamChatWithTools_DispatchesToToolCaller(t *testing.T) {
 func TestStreamChatWithTools_FallsBackToStreamerWhenNoToolCaller(t *testing.T) {
 	streamer := &fakeStreamer{
 		fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
-		result:        &domain.ChatCompletionResult{Content: "sin tools", Model: "gemini-3.8-flash"},
+		result:        &domain.ChatCompletionResult{Content: "sin tools", Model: "gemini-4-hydrogen"},
 	}
 	svc, _, _ := newTestService(t, map[string]Provider{"google": streamer})
 	_ = svc.setSecretVerified("google", "AIzaSyTestKey")
@@ -92,7 +92,7 @@ func TestStreamChatWithTools_FallsBackToStreamerWhenNoToolCaller(t *testing.T) {
 	result, err := svc.StreamChatWithTools(
 		context.Background(),
 		"google",
-		"gemini-3.8-flash",
+		"gemini-4-hydrogen",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}},
 		[]domain.ToolDefinition{{Name: "read_file"}},
 		nil,
@@ -112,7 +112,7 @@ func TestStreamChatWithTools_UnconfiguredProviderFails(t *testing.T) {
 	_, err := svc.StreamChatWithTools(
 		context.Background(),
 		"openai",
-		"gpt-5.6-terra",
+		"gpt-6.2-sol",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}},
 		nil,
 		nil,
@@ -136,7 +136,7 @@ func TestStreamChatWithTools_OutputTooLargeIsRejected(t *testing.T) {
 	_, err := svc.StreamChatWithTools(
 		context.Background(),
 		"anthropic",
-		"claude-sonnet-5",
+		"claude-sonnet-5-5",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}},
 		nil,
 		func(domain.StreamChunk) error { return nil },
@@ -158,7 +158,7 @@ func TestStreamChatWithTools_PropagatesProviderError(t *testing.T) {
 	_, err := svc.StreamChatWithTools(
 		context.Background(),
 		"anthropic",
-		"claude-sonnet-5",
+		"claude-sonnet-5-5",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "hola"}},
 		nil,
 		nil,

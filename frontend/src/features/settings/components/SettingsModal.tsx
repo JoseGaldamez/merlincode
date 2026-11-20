@@ -138,7 +138,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <AISettingsTab
                 settings={settings}
                 onUpdate={updateSetting}
-                telemetry={telemetry}
               />
             )}
 

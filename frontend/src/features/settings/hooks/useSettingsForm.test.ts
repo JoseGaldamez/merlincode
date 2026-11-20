@@ -85,6 +85,24 @@ describe('preferencias seguras', () => {
     expect(persisted).not.toContain('token');
   });
 
+  it.each([
+    ['anthropic', 'claude-sonnet-5', 'claude-sonnet-5-5'],
+    ['openai', 'gpt-5.6-terra', 'gpt-6.2-sol'],
+    ['openai', 'gpt-6-sol', 'gpt-6.2-sol'],
+    ['google', 'gemini-3.8-flash', 'gemini-4-hydrogen'],
+    ['deepseek', 'deepseek-v4-pro', 'deepseek-flash'],
+  ])('actualiza el modelo automático anterior de %s', (provider, previous, current) => {
+    const storage = new MemoryStorage({
+      [SETTINGS_STORAGE_KEY]: JSON.stringify({ modelProvider: provider, model: previous }),
+    });
+
+    const settings = loadAndMigrateSettings(storage);
+
+    expect(settings.modelProvider).toBe(provider);
+    expect(settings.model).toBe(current);
+    expect(storage.getItem(SETTINGS_STORAGE_KEY)).toContain(current);
+  });
+
   it('elimina una configuración corrupta en vez de conservar posibles secretos', () => {
     const storage = new MemoryStorage({
       [LEGACY_SETTINGS_STORAGE_KEY]: '{"apiKey":"SENTINEL_BROKEN"',

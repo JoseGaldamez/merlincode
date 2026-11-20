@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -35,7 +36,7 @@ func withFakeStreamTransport(t *testing.T, sseBody string) {
 // Fixture SSE real de Anthropic (formato de docs.anthropic.com) para un turno que responde con texto
 // y luego invoca una tool "read_file" cuyos argumentos llegan fragmentados en varios input_json_delta.
 const toolUseSSEFixture = `event: message_start
-data: {"type":"message_start","message":{"usage":{"input_tokens":42}}}
+data: {"type":"message_start","message":{"usage":{"input_tokens":42,"cache_read_input_tokens":10,"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2}}}}
 
 event: content_block_start
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
@@ -121,7 +122,8 @@ func TestStreamChatWithTools_AccumulatesFragmentedToolCallArguments(t *testing.T
 		t.Fatalf("ToolCalls del resultado final inesperadas: %+v", result.ToolCalls)
 	}
 
-	if result.TokensPrompt != 42 || result.TokensCompletion != 17 {
+	if result.TokensPrompt != 57 || result.TokensCompletion != 17 || result.Usage == nil ||
+		result.Usage.CacheRead != 10 || result.Usage.CacheWriteShort != 3 || result.Usage.CacheWriteLong != 2 {
 		t.Fatalf("conteo de tokens inesperado: prompt=%d completion=%d", result.TokensPrompt, result.TokensCompletion)
 	}
 }
@@ -152,6 +154,50 @@ data: {"type":"message_stop"}
 	}
 	if len(result.ToolCalls) != 1 || result.ToolCalls[0].Arguments != "{}" {
 		t.Fatalf("se esperaba Arguments='{}' por defecto, obtenido: %+v", result.ToolCalls)
+	}
+}
+
+func TestStreamChatWithTools_ReplaysSignedThinkingBlocks(t *testing.T) {
+	withFakeStreamTransport(t, `data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"signed-value"}}
+data: {"type":"content_block_stop","index":0}
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_03","name":"list_files","input":{}}}
+data: {"type":"content_block_stop","index":1}
+`)
+	client := Client{}
+	messages := []domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "Lista los archivos"}}
+	tools := []domain.ToolDefinition{{Name: "list_files", InputSchema: map[string]any{"type": "object"}}}
+	result, err := client.StreamChatWithTools(context.Background(), "test-key", "", messages, tools, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stream := transport.StreamClient.Transport
+	transport.StreamClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var payload struct {
+			Model    string
+			Messages []struct{ Content []anthropicContentBlock }
+		}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Model != "claude-sonnet-5-5" || len(payload.Messages) != 3 {
+			t.Fatalf("solicitud de continuación inesperada: %+v", payload)
+		}
+		blocks := payload.Messages[1].Content
+		if len(blocks) != 2 || blocks[0].Type != "thinking" || blocks[0].Thinking == nil ||
+			*blocks[0].Thinking != "" || blocks[0].Signature != "signed-value" || blocks[1].ID != "toolu_03" {
+			t.Fatalf("el turno no conserva el bloque firmado seguido de la llamada: %+v", blocks)
+		}
+		return stream.RoundTrip(req)
+	})
+
+	messages = append(messages,
+		domain.ChatMessage{Role: domain.ChatRoleAssistant, ToolCalls: result.ToolCalls, ProviderContent: result.ProviderContent},
+		domain.ChatMessage{Role: domain.ChatRoleUser, ToolResults: []domain.ToolResult{{ToolCallID: "toolu_03", Content: "main.go"}}},
+	)
+	if _, err := client.StreamChatWithTools(context.Background(), "test-key", "", messages, tools, nil); err != nil {
+		t.Fatal(err)
 	}
 }
 

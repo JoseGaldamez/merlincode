@@ -167,7 +167,7 @@ func TestValidateAndSaveKey_ValidPersists(t *testing.T) {
 		"anthropic": fakeValidator{result: domain.ProviderValidationResult{
 			Valid:       true,
 			AccountInfo: "5 modelos disponibles",
-			Models:      []string{"claude-sonnet-5"},
+			Models:      []string{"claude-sonnet-5-5"},
 		}},
 	}
 	svc, filePath, store := newTestService(t, validators)
@@ -442,19 +442,19 @@ func TestSecurity_SendTestMessageLimitsAndValidation(t *testing.T) {
 
 	// 2. Rechazo de mensaje excesivo (> 4 KiB)
 	hugeMsg := strings.Repeat("x", 5000)
-	_, err = svc.SendTestMessage(context.Background(), "anthropic", hugeMsg, "claude-sonnet-5")
+	_, err = svc.SendTestMessage(context.Background(), "anthropic", hugeMsg, "claude-sonnet-5-5")
 	if !errors.Is(err, domain.ErrMessageTooLarge) {
 		t.Fatalf("esperado ErrMessageTooLarge, obtenido: %v", err)
 	}
 
 	// 3. Envío exitoso con modelo permitido
-	res, err := svc.SendTestMessage(context.Background(), "anthropic", "hola", "claude-sonnet-5")
+	res, err := svc.SendTestMessage(context.Background(), "anthropic", "hola", "claude-sonnet-5-5")
 	if err != nil || !res.Success {
 		t.Fatalf("error inesperado en envío válido: err=%v, res=%+v", err, res)
 	}
 
 	// 4. Cooldown (enviar inmediatamente debe ser bloqueado por RateLimit)
-	_, err = svc.SendTestMessage(context.Background(), "anthropic", "hola de nuevo", "claude-sonnet-5")
+	_, err = svc.SendTestMessage(context.Background(), "anthropic", "hola de nuevo", "claude-sonnet-5-5")
 	if !errors.Is(err, domain.ErrRateLimited) {
 		t.Fatalf("esperado ErrRateLimited dentro del periodo de cooldown, obtenido: %v", err)
 	}
@@ -753,7 +753,7 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 	hugeOutput := strings.Repeat("a", 10000)
 	slowTester := &fakeMessageTester{
 		fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
-		testResult:    domain.TestMessageResult{Success: true, ResponseText: hugeOutput, Model: "claude-sonnet-5"},
+		testResult:    domain.TestMessageResult{Success: true, ResponseText: hugeOutput, Model: "claude-sonnet-5-5"},
 		started:       started,
 		release:       release,
 	}
@@ -766,7 +766,7 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 	t.Run("concurrent_request_is_rejected", func(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
-			_, err := svc.SendTestMessage(context.Background(), "anthropic", "mensaje 1", "claude-sonnet-5")
+			_, err := svc.SendTestMessage(context.Background(), "anthropic", "mensaje 1", "claude-sonnet-5-5")
 			errCh <- err
 		}()
 
@@ -774,7 +774,7 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 		<-started
 
 		// Segunda llamada concurrente debe ser rechazada de inmediato
-		_, err := svc.SendTestMessage(context.Background(), "anthropic", "mensaje 2", "claude-sonnet-5")
+		_, err := svc.SendTestMessage(context.Background(), "anthropic", "mensaje 2", "claude-sonnet-5-5")
 		if !errors.Is(err, domain.ErrConcurrentRequestBlocked) {
 			t.Fatalf("se esperaba ErrConcurrentRequestBlocked, obtenido: %v", err)
 		}
@@ -792,13 +792,13 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 
 		fastTester := &fakeMessageTester{
 			fakeValidator: fakeValidator{result: domain.ProviderValidationResult{Valid: true}},
-			testResult:    domain.TestMessageResult{Success: true, ResponseText: hugeOutput, Model: "claude-sonnet-5"},
+			testResult:    domain.TestMessageResult{Success: true, ResponseText: hugeOutput, Model: "claude-sonnet-5-5"},
 		}
 		fastSvc, _, _ := newTestService(t, map[string]Provider{"anthropic": fastTester})
 		_ = fastSvc.setSecretVerified("anthropic", "sk-ant-fast")
 		_ = fastSvc.hydrateFromKeyring()
 
-		result, err := fastSvc.SendTestMessage(context.Background(), "anthropic", "test", "claude-sonnet-5")
+		result, err := fastSvc.SendTestMessage(context.Background(), "anthropic", "test", "claude-sonnet-5-5")
 		if err != nil {
 			t.Fatalf("SendTestMessage falló: %v", err)
 		}
@@ -824,7 +824,7 @@ func TestSecurity_TestMessageConcurrencyOutputAndCancellation(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			_, err := cancellingSvc.SendTestMessage(cancelCtx, "anthropic", "cancel-me", "claude-sonnet-5")
+			_, err := cancellingSvc.SendTestMessage(cancelCtx, "anthropic", "cancel-me", "claude-sonnet-5-5")
 			errCh <- err
 		}()
 
@@ -888,7 +888,7 @@ func TestStreamChat_StreamingAndThinking(t *testing.T) {
 		result: &domain.ChatCompletionResult{
 			Content:          "¡Hola! ¿En qué te puedo ayudar?",
 			Thinking:         "Analizando la pregunta...Evaluando alternativas...",
-			Model:            "gemini-3.8-flash",
+			Model:            "gemini-4-hydrogen",
 			TokensPrompt:     10,
 			TokensCompletion: 15,
 		},
@@ -904,7 +904,7 @@ func TestStreamChat_StreamingAndThinking(t *testing.T) {
 	res, err := svc.StreamChat(
 		context.Background(),
 		"google",
-		"gemini-3.8-flash",
+		"gemini-4-hydrogen",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "Hola"}},
 		func(chunk domain.StreamChunk) error {
 			if chunk.Type == domain.ChunkTypeThinking {
@@ -940,7 +940,7 @@ func TestStreamChat_UnconfiguredProviderFails(t *testing.T) {
 	_, err := svc.StreamChat(
 		context.Background(),
 		"openai",
-		"gpt-5.6-terra",
+		"gpt-6.2-sol",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "Hola"}},
 		nil,
 	)

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,36 @@ import (
 
 	"merlincode/internal/domain"
 )
+
+func TestReadFilePreviewUsesActiveRootAndPreservesBinary(t *testing.T) {
+	svc := NewService()
+	defer svc.Close()
+	original, err := svc.SetActive(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []byte{0x89, 'P', 'N', 'G', 0, 0xff}
+	file := filepath.Join(original.Path, "preview.png")
+	if err := os.WriteFile(file, want, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"preview.png", file} {
+		got, err := svc.ReadFilePreview(original.Path, path)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("preview bytes = %v, error = %v", got, err)
+		}
+	}
+	next, err := svc.SetActive(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(next.Path, "preview.png"), []byte("different project"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReadFilePreview(original.Path, "preview.png"); !errors.Is(err, domain.ErrAccessDenied) {
+		t.Fatalf("preview accepted a stale project: %v", err)
+	}
+}
 
 func TestSandboxRejectsExternalPathsAndLinks(t *testing.T) {
 	project, outside := t.TempDir(), t.TempDir()
@@ -34,6 +65,9 @@ func TestSandboxRejectsExternalPathsAndLinks(t *testing.T) {
 		if err := svc.OpenExplorer(name); !errors.Is(err, domain.ErrAccessDenied) {
 			t.Fatalf("open %q: %v", name, err)
 		}
+		if _, err := svc.ReadFilePreview(svc.GetActiveDir(), name); err == nil {
+			t.Fatalf("preview opened external path %q", name)
+		}
 	}
 	t.Run("link or junction", func(t *testing.T) {
 		link := filepath.Join(project, "escape")
@@ -54,6 +88,9 @@ func TestSandboxRejectsExternalPathsAndLinks(t *testing.T) {
 			}
 			if _, err := svc.ReadFile(name); !errors.Is(err, domain.ErrAccessDenied) {
 				t.Fatalf("read escaped: %v", err)
+			}
+			if _, err := svc.ReadFilePreview(svc.GetActiveDir(), name); !errors.Is(err, domain.ErrAccessDenied) {
+				t.Fatalf("preview escaped: %v", err)
 			}
 		}
 		if err := svc.OpenExplorer("escape"); !errors.Is(err, domain.ErrAccessDenied) {
@@ -109,6 +146,9 @@ func TestFileLimitsAndPermissionProbe(t *testing.T) {
 	}
 	f.Close()
 	if _, err := svc.ReadFile("large"); !errors.Is(err, domain.ErrFileTooLarge) {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReadFilePreview(svc.GetActiveDir(), "large"); !errors.Is(err, domain.ErrFileTooLarge) {
 		t.Fatal(err)
 	}
 	if _, err := svc.ReadFile("."); !errors.Is(err, domain.ErrAccessDenied) {

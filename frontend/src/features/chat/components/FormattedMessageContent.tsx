@@ -42,11 +42,21 @@ export function parseMarkdownBlocks(text: string): ContentBlock[] {
 export const FormattedMessageContent: React.FC<{
   content: string;
   messageId: string;
-}> = ({ content, messageId }) => {
-  const blocks = useMemo(() => parseMarkdownBlocks(content), [content]);
+  onPreviewFile?: (path: string) => void;
+}> = ({ content, messageId, onPreviewFile }) => {
+  const enableFileLinks = Boolean(onPreviewFile);
+  const blocks = useMemo(() => parseMarkdownBlocks(content).map((block) => (
+    block.type === 'text'
+      ? { ...block, html: renderSafeMarkdown(block.content, { enableFileLinks }) }
+      : { ...block, html: '' }
+  )), [content, enableFileLinks]);
 
   return (
-    <div className="space-y-3 text-content-body">
+    <div className="space-y-3 text-content-body" onClick={onPreviewFile && ((event) => {
+      if (!(event.target instanceof Element)) return;
+      const path = event.target.closest<HTMLButtonElement>('button[data-preview-path]')?.dataset.previewPath;
+      if (path) onPreviewFile(path);
+    })}>
       {blocks.map((block, idx) => {
         if (block.type === 'code') {
           return (
@@ -59,13 +69,11 @@ export const FormattedMessageContent: React.FC<{
           );
         }
 
-        const html = renderSafeMarkdown(block.content);
-
         return (
           <div
             key={`text-${messageId}-${idx}`}
             className="markdown-body"
-            dangerouslySetInnerHTML={{ __html: html }}
+            dangerouslySetInnerHTML={{ __html: block.html }}
           />
         );
       })}

@@ -15,6 +15,7 @@ export interface ProjectFileTreeProps {
   projectPath?: string;
   projectName?: string;
   onOpenFolder?: () => void;
+  onPreviewFile?: (path: string) => void;
 }
 
 const STORAGE_KEY_TREE_HEIGHT = 'merlin_project_tree_height';
@@ -44,6 +45,7 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
   projectPath,
   projectName,
   onOpenFolder,
+  onPreviewFile,
 }) => {
   const {
     nodes,
@@ -108,9 +110,11 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
     }
   };
 
-  const handleDoubleClickNode = (fullPath: string) => {
-    if (fullPath) {
-      OpenDirectoryInExplorer(fullPath).catch(() => {});
+  const handleDoubleClickNode = (node: domain.FileNode) => {
+    if (!node.isDir && onPreviewFile) {
+      onPreviewFile(node.relPath);
+    } else if (node.fullPath) {
+      OpenDirectoryInExplorer(node.fullPath).catch(() => {});
     }
   };
 
@@ -218,9 +222,9 @@ export const ProjectFileTree: React.FC<ProjectFileTreeProps> = ({
         onClick={() => toggleCollapse()}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
-          <IconFolder size={13} className="text-accent-primary shrink-0" />
+          <IconFolder size={13} className="text-content-dim shrink-0" />
           <span
-            className="text-[11px] font-mono font-semibold tracking-wider text-accent-primary truncate"
+            className="text-[11px] font-mono font-semibold tracking-wider text-content-muted truncate"
             title={projectPath}
           >
             {projectName || 'PROYECTO'}

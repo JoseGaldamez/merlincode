@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"encoding/json"
+	"time"
+)
+
 // ChatRole identifica el emisor del mensaje en la conversación.
 type ChatRole string
 
@@ -15,6 +20,8 @@ type ChatMessage struct {
 	Content     string       `json:"content"`
 	ToolCalls   []ToolCall   `json:"toolCalls,omitempty"`
 	ToolResults []ToolResult `json:"toolResults,omitempty"`
+	// ProviderContent preserves signed assistant blocks within a tool-use turn.
+	ProviderContent json.RawMessage `json:"-"`
 }
 
 // ChatStreamRequest contiene los parámetros para iniciar una respuesta en streaming desde el frontend.
@@ -67,6 +74,7 @@ type ChatStreamEvent struct {
 	ModelID          string               `json:"modelId,omitempty"`
 	TokensPrompt     int64                `json:"tokensPrompt,omitempty"`
 	TokensCompletion int64                `json:"tokensCompletion,omitempty"`
+	Cost             *TurnCost            `json:"cost,omitempty"`
 	Error            string               `json:"error,omitempty"`
 	ToolName         string               `json:"toolName,omitempty"`
 	ToolCallID       string               `json:"toolCallId,omitempty"`
@@ -77,10 +85,22 @@ type ChatStreamEvent struct {
 
 // ChatCompletionResult almacena el resultado final de la generación del chat.
 type ChatCompletionResult struct {
-	Content          string     `json:"content"`
-	Thinking         string     `json:"thinking,omitempty"`
-	Model            string     `json:"model"`
-	TokensPrompt     int64      `json:"tokensPrompt"`
-	TokensCompletion int64      `json:"tokensCompletion"`
-	ToolCalls        []ToolCall `json:"toolCalls,omitempty"`
+	Content          string          `json:"content"`
+	Thinking         string          `json:"thinking,omitempty"`
+	Model            string          `json:"model"`
+	TokensPrompt     int64           `json:"tokensPrompt"`
+	TokensCompletion int64           `json:"tokensCompletion"`
+	ToolCalls        []ToolCall      `json:"toolCalls,omitempty"`
+	ProviderContent  json.RawMessage `json:"-"`
+	Usage            *ModelUsage     `json:"-"`
+}
+
+// ModelUsage contiene las categorías de entrada facturadas a tarifas de caché.
+// TokensPrompt del resultado incluye todas estas categorías; TokensCompletion incluye razonamiento.
+type ModelUsage struct {
+	CacheRead       int64
+	CacheWriteShort int64
+	CacheWriteLong  int64
+	ServiceTier     string
+	OccurredAt      time.Time
 }

@@ -44,7 +44,7 @@ data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th
 
 data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"main.go\"}"}}]},"finish_reason":null}]}
 
-data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":30,"completion_tokens":12}}
+data: {"created":1795165920,"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":30,"completion_tokens":12,"prompt_cache_hit_tokens":4}}
 
 data: [DONE]
 
@@ -99,7 +99,8 @@ func TestStreamChatWithTools_AccumulatesFragmentedToolCallArguments(t *testing.T
 		t.Fatalf("ToolCalls del resultado final inesperadas: %+v", result.ToolCalls)
 	}
 
-	if result.TokensPrompt != 30 || result.TokensCompletion != 12 {
+	if result.TokensPrompt != 30 || result.TokensCompletion != 12 || result.Usage == nil ||
+		result.Usage.CacheRead != 4 || result.Usage.OccurredAt.Unix() != 1795165920 {
 		t.Fatalf("conteo de tokens inesperado: prompt=%d completion=%d", result.TokensPrompt, result.TokensCompletion)
 	}
 }
