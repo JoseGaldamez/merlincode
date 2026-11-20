@@ -1,0 +1,207 @@
+.file-preview {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: calc(100vw - clamp(20px, 4vw, 64px));
+  height: calc(100dvh - clamp(28px, 7vh, 76px));
+  max-width: 960px;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-lowest);
+  color: var(--text-body);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 24px 90px rgb(0 0 0 / 50%);
+}
+
+.file-preview[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-preview::backdrop {
+  background: rgb(0 0 0 / 68%);
+}
+
+.file-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  min-height: 54px;
+  flex: none;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+
+.file-preview-zoom {
+  display: flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font: 12px var(--font-mono);
+}
+
+.file-preview-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding-inline: 7px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.file-preview-header button:hover:enabled {
+  color: var(--accent-primary);
+  background: var(--surface-hover);
+}
+
+.file-preview-header button:focus-visible,
+.file-preview-body:focus-visible,
+.markdown-file-link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.file-preview-header button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.file-preview-zoom button:nth-child(2) {
+  min-width: 64px;
+  border-inline: 1px solid var(--border-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-preview-close {
+  border-radius: 6px;
+}
+
+.file-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  container-type: size;
+  user-select: text;
+}
+
+.file-preview-status {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.file-preview-image {
+  display: flex;
+  min-height: 100%;
+  padding: 16px;
+}
+
+.file-preview-image img {
+  flex: none;
+  margin: auto;
+  width: calc(min(100%, var(--image-width), (100cqh - 32px) * var(--image-ratio)) * var(--image-zoom));
+  max-width: none;
+  height: auto;
+}
+
+.file-preview-text {
+  padding: 20px clamp(16px, 3vw, 40px);
+  font: 13px/1.65 var(--font-mono);
+  tab-size: 4;
+}
+
+.file-preview-text,
+.file-preview-markdown pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-preview-code-line {
+  display: inline-block;
+  position: relative;
+  vertical-align: top;
+  inline-size: 100%;
+  min-block-size: 1lh;
+  padding-inline-start: calc(var(--file-preview-line-digits) + 16px);
+}
+
+.file-preview-code-line::before {
+  content: attr(data-line) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: var(--file-preview-line-digits);
+  text-align: end;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.file-preview-markdown {
+  padding: 24px clamp(16px, 4vw, 36px) 32px;
+  font-size: 14px;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.file-preview-markdown :is(h5, h6) {
+  margin-block: 1.25rem 0.5rem;
+  color: var(--text-headline);
+  font-weight: 600;
+}
+
+.file-preview-markdown pre {
+  margin-block: 1rem;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-card);
+  font: 12px/1.6 var(--font-mono);
+  tab-size: 4;
+}
+
+.file-preview-pdf {
+  padding: 20px clamp(14px, 4vw, 48px);
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+}
+
+.file-preview-pdf-page {
+  width: min(100%, 940px);
+  font: 11px var(--font-mono);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.file-preview-pdf-sheet {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 24%);
+}
+
+.file-preview-pdf-sheet canvas,
+.file-preview-pdf-error {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.file-preview-pdf-error {
+  display: grid;
+  place-items: center;
+  color: #242629;
+}
+
+.file-preview-pdf-page figcaption {
+  margin-top: 9px;
+}

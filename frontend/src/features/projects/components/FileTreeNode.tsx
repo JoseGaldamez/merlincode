@@ -15,7 +15,7 @@ interface FileTreeNodeProps {
   isExpanded: boolean;
   onSelect: (path: string) => void;
   onToggleExpand: (path: string) => void;
-  onDoubleClick: (fullPath: string) => void;
+  onDoubleClick: (node: domain.FileNode) => void;
   renderChild: (child: domain.FileNode, depth: number) => React.ReactNode;
 }
 
@@ -36,7 +36,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({
       <div
         className={`flex items-center gap-1.5 py-1 px-2 rounded text-xs cursor-pointer select-none transition-colors border ${
           isSelected
-            ? 'bg-surface-selected text-accent-primary border-border-petrol'
+            ? 'bg-surface-selected border-border-petrol'
             : 'text-content-muted hover:bg-surface-card hover:text-content-headline border-transparent'
         }`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
@@ -46,9 +46,13 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             onToggleExpand(node.relPath);
           }
         }}
-        onDoubleClick={() => {
-          if (node.fullPath) {
-            onDoubleClick(node.fullPath);
+        onDoubleClick={() => onDoubleClick(node)}
+        tabIndex={isDir ? undefined : 0}
+        role={isDir ? undefined : 'button'}
+        onKeyDown={(event) => {
+          if (!isDir && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            onDoubleClick(node);
           }
         }}
         title={`${node.relPath}${node.size ? ` (${(node.size / 1024).toFixed(1)} KB)` : ''}`}
@@ -58,7 +62,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             <span className="text-content-dim shrink-0">
               {isExpanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
             </span>
-            <span className="text-accent-primary/80 shrink-0">
+            <span className={`shrink-0 ${isSelected ? 'text-accent-primary' : 'text-content-dim'}`}>
               {isExpanded ? <IconFolderOpen size={13} /> : <IconFolder size={13} />}
             </span>
             <span className="truncate font-mono text-[11px] font-medium text-content-body">
@@ -69,7 +73,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           <>
             <span className="w-3 shrink-0" />
             <FileIcon name={node.name} />
-            <span className="truncate font-mono text-[11px] text-content-muted">
+            <span className={`truncate font-mono text-[11px] ${isSelected ? 'text-content-headline' : 'text-content-muted'}`}>
               {node.name}
             </span>
           </>

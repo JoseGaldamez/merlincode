@@ -25,11 +25,9 @@ type deepSeekStreamChunkResponse struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int64 `json:"prompt_tokens"`
-		CompletionTokens int64 `json:"completion_tokens"`
-	} `json:"usage,omitempty"`
-	Error *struct {
+	Usage   *deepSeekUsage `json:"usage,omitempty"`
+	Created int64          `json:"created"`
+	Error   *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 		Code    any    `json:"code"`
@@ -50,7 +48,7 @@ func (Client) StreamChat(
 		return nil, errors.New("la clave de API de DeepSeek no puede estar vacía")
 	}
 	if model == "" {
-		model = "deepseek-v4-pro"
+		model = defaultModel
 	}
 
 	type chatReqMsg struct {
@@ -128,8 +126,8 @@ func (Client) StreamChat(
 
 	var totalText strings.Builder
 	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
+	var usage *deepSeekUsage
+	var created int64
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -152,8 +150,8 @@ func (Client) StreamChat(
 		}
 
 		if chunk.Usage != nil {
-			promptTokens = chunk.Usage.PromptTokens
-			completionTokens = chunk.Usage.CompletionTokens
+			usage = chunk.Usage
+			created = chunk.Created
 		}
 
 		for _, choice := range chunk.Choices {
@@ -189,11 +187,11 @@ func (Client) StreamChat(
 		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
 	}
 
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-	}, nil
+	result := &domain.ChatCompletionResult{
+		Content:  totalText.String(),
+		Thinking: totalThinking.String(),
+		Model:    model,
+	}
+	usage.apply(result, created)
+	return result, nil
 }

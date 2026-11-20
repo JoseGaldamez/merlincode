@@ -1,6 +1,9 @@
 package app
 
 import (
+	"encoding/base64"
+	"errors"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"merlincode/internal/domain"
@@ -58,6 +61,18 @@ func (a *App) notifyWorkspaceChanged() {
 // ReadProjectFile lee el contenido de un archivo dentro del proyecto activo
 func (a *App) ReadProjectFile(relativePath string) (string, error) {
 	return a.workspaceService.ReadFile(relativePath)
+}
+
+// ReadProjectFilePreview encodes the file bytes for transfer over Wails' JSON bridge.
+func (a *App) ReadProjectFilePreview(projectDir, path string) (string, error) {
+	data, err := a.workspaceService.ReadFilePreview(projectDir, path)
+	if err != nil {
+		if errors.Is(err, domain.ErrFileTooLarge) || errors.Is(err, domain.ErrNoActiveProject) {
+			return "", err
+		}
+		return "", domain.ErrAccessDenied
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 // ListProjectFiles retorna los archivos y carpetas directamente en la raíz del proyecto activo

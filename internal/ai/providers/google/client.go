@@ -15,6 +15,8 @@ import (
 // Client verifica credenciales y envía mensajes a Google Gemini mediante el encabezado x-goog-api-key.
 type Client struct{}
 
+const defaultModel = "gemini-4-hydrogen"
+
 type googleModelsResponse struct {
 	Models []struct {
 		Name string `json:"name"`
@@ -60,7 +62,21 @@ func (Client) Validate(ctx context.Context, apiKey string) (domain.ProviderValid
 }
 
 type googleGenerationConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens"`
+	MaxOutputTokens int                   `json:"maxOutputTokens"`
+	ThinkingConfig  *googleThinkingConfig `json:"thinkingConfig,omitempty"`
+}
+
+type googleThinkingConfig struct {
+	ThinkingLevel string `json:"thinkingLevel"`
+}
+
+func generationConfig(model string, maxTokens int) *googleGenerationConfig {
+	config := &googleGenerationConfig{MaxOutputTokens: maxTokens}
+	if strings.HasPrefix(model, "gemini-4-") {
+		// El límite también incluye razonamiento. El nivel bajo deja más espacio para la respuesta.
+		config.ThinkingConfig = &googleThinkingConfig{ThinkingLevel: "low"}
+	}
+	return config
 }
 
 type googleGenerateContentRequest struct {
@@ -97,7 +113,7 @@ func (Client) SendTestMessage(ctx context.Context, apiKey string, message string
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "gemini-3.8-flash"
+		model = defaultModel
 	}
 
 	var reqBody googleGenerateContentRequest
@@ -108,9 +124,7 @@ func (Client) SendTestMessage(ctx context.Context, apiKey string, message string
 	}{{Parts: []struct {
 		Text string `json:"text"`
 	}{{Text: message}}}}
-	reqBody.GenerationConfig = &googleGenerationConfig{
-		MaxOutputTokens: 256,
-	}
+	reqBody.GenerationConfig = generationConfig(model, 256)
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {

@@ -26,6 +26,7 @@ type ChatMessageRecord struct {
 	ModelID          string    `json:"modelId,omitempty"`
 	TokensPrompt     int64     `json:"tokensPrompt,omitempty"`
 	TokensCompletion int64     `json:"tokensCompletion,omitempty"`
+	Cost             *TurnCost `json:"cost,omitempty"`
 	DurationSeconds  int       `json:"durationSeconds,omitempty"`
 	Feedback         *string   `json:"feedback,omitempty"` // "like", "dislike" o nil
 	Status           string    `json:"status,omitempty"`   // "done", "error", etc.
@@ -33,4 +34,17 @@ type ChatMessageRecord struct {
 
 	// ToolTrace registra las herramientas ejecutadas durante este turno de agente (puede ir vacío).
 	ToolTrace []ToolTraceEntry `json:"toolTrace,omitempty"`
+}
+
+// TurnCost conserva el importe estimado disponible y si faltó consumo por contabilizar.
+type TurnCost struct {
+	NanosUSD *int64 `json:"nanosUsd"`
+	Partial  bool   `json:"partial"`
+	Requests int    `json:"requests"`
+}
+
+type DailyProviderUsage struct {
+	TokensPrompt     int64    `json:"tokensPrompt"`
+	TokensCompletion int64    `json:"tokensCompletion"`
+	Cost             TurnCost `json:"cost"`
 }

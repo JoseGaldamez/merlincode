@@ -19,6 +19,7 @@ export interface LeftSidebarProps {
   projectName?: string;
   projectPath?: string;
   onOpenFolder?: () => void;
+  onPreviewFile?: (path: string) => void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -35,6 +36,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projectName = '',
   projectPath,
   onOpenFolder,
+  onPreviewFile,
 }) => {
   const { handleMouseDown } = useResizablePanel({
     minWidth: 180,
@@ -89,7 +91,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <span className="text-[11px] font-semibold tracking-wider text-content-dim font-mono">
                 SESIONES
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-selected text-accent-primary font-medium">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container text-content-muted font-medium">
                 {sessions.length}
               </span>
             </div>
@@ -108,7 +110,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <div className="p-3 pb-2 shrink-0">
             <button
               type="button"
-              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-accent-primary hover:bg-accent-primary-hover text-canvas font-semibold text-xs rounded transition-colors cursor-pointer shadow-sm"
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 border border-border-petrol bg-accent-petrol hover:bg-accent-petrol-hover text-accent-primary font-semibold text-xs rounded transition-colors cursor-pointer focus-visible:outline-accent-primary"
               onClick={onNewSession}
             >
               <IconPlus size={14} />
@@ -150,6 +152,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             projectPath={projectPath}
             projectName={projectName}
             onOpenFolder={onOpenFolder}
+            onPreviewFile={onPreviewFile}
           />
         </div>
       )}

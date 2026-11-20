@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"merlincode/internal/ai"
 	"merlincode/internal/domain"
 )
 
@@ -90,7 +91,22 @@ func (a *App) SaveChatMessage(msg domain.ChatMessageRecord) error {
 	} else {
 		defer cancel()
 	}
+	msg.Cost = nil
 	return a.sessionService.SaveMessage(ctx, msg)
+}
+
+// GetTodayAIUsage returns locally recorded totals for one provider on the current local day.
+func (a *App) GetTodayAIUsage(providerID string) (domain.DailyProviderUsage, error) {
+	if a.sessionService == nil {
+		return domain.DailyProviderUsage{}, errors.New("servicio de sesiones no disponible")
+	}
+	ctx, cancel, err := a.getAppContext(5 * time.Second)
+	if err != nil {
+		ctx = context.Background()
+	} else {
+		defer cancel()
+	}
+	return a.sessionService.GetTodayAIUsage(ctx, ai.NormalizeProviderID(providerID), time.Now())
 }
 
 // UpdateMessageFeedback guarda o quita el feedback ("like", "dislike", o ""/vacío para eliminarlo)

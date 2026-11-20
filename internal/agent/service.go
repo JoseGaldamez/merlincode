@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"merlincode/internal/ai/pricing"
 	"merlincode/internal/domain"
 	"merlincode/internal/workspace"
 )
@@ -82,8 +83,10 @@ func (a *Service) Run(ctx context.Context, req domain.ChatStreamRequest, message
 	var fullContent strings.Builder
 	var fullThinking strings.Builder
 	var toolTrace []domain.ToolTraceEntry
+	var usage turnUsage
 
 	for iteration := 0; iteration < maxToolIterations; iteration++ {
+		requestedAt := time.Now()
 		result, err := a.aiProviderService.StreamChatWithTools(
 			ctx,
 			req.ProviderID,
@@ -117,25 +120,27 @@ func (a *Service) Run(ctx context.Context, req domain.ChatStreamRequest, message
 			},
 		)
 
+		usage.record(req, result, requestedAt)
 		if err != nil {
-			a.handleAgentTurnError(req, err, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace)
+			a.handleAgentTurnError(req, err, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace, usage)
 			return
 		}
 
 		if len(result.ToolCalls) == 0 {
-			a.finishAgentTurn(req, result, streamStartTime, toolTrace)
+			a.finishAgentTurn(req, result, streamStartTime, toolTrace, usage)
 			return
 		}
 
 		messages = append(messages, domain.ChatMessage{
-			Role:      domain.ChatRoleAssistant,
-			Content:   result.Content,
-			ToolCalls: result.ToolCalls,
+			Role:            domain.ChatRoleAssistant,
+			Content:         result.Content,
+			ToolCalls:       result.ToolCalls,
+			ProviderContent: result.ProviderContent,
 		})
 
 		toolResults, canceled := a.ExecuteTools(ctx, req, registry, result.ToolCalls, &toolTrace)
 		if canceled {
-			a.handleAgentTurnCanceled(req, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace)
+			a.handleAgentTurnCanceled(req, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace, usage)
 			return
 		}
 
@@ -145,5 +150,34 @@ func (a *Service) Run(ctx context.Context, req domain.ChatStreamRequest, message
 		})
 	}
 
-	a.handleAgentTurnError(req, domain.ErrMaxToolIterationsExceeded, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace)
+	a.handleAgentTurnError(req, domain.ErrMaxToolIterationsExceeded, streamStartTime, fullContent.String(), fullThinking.String(), toolTrace, usage)
+}
+
+type turnUsage struct {
+	prompt, completion int64
+	cost               domain.TurnCost
+}
+
+func (u *turnUsage) record(req domain.ChatStreamRequest, result *domain.ChatCompletionResult, requestedAt time.Time) {
+	u.cost.Requests++
+	if result == nil {
+		u.cost.Partial = true
+		return
+	}
+	u.prompt += max(0, min(result.TokensPrompt, 2_000_000))
+	u.completion += max(0, min(result.TokensCompletion, 2_000_000))
+	model := req.ModelID
+	if model == "" {
+		model = result.Model
+	}
+	amount := pricing.Estimate(req.ProviderID, model, result, requestedAt)
+	if amount == nil {
+		u.cost.Partial = true
+		return
+	}
+	if u.cost.NanosUSD == nil {
+		u.cost.NanosUSD = amount
+	} else {
+		*u.cost.NanosUSD += *amount
+	}
 }

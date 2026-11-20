@@ -18,33 +18,32 @@
 }
 
 :root {
-  /* Palette aligned with merlincode-web/src/styles/global.css. */
-  --bg-canvas: #060807;
-  --surface-neutral: #0e1110;
-  --surface-container: #151917;
-  --surface-card: #101512;
-  --surface-elevated: #1a201c;
-  --surface-lowest: #090c0a;
-  --surface-sidebar: #0b0e0c;
-  --surface-hover: #1c231f;
-  --surface-strong: #252e28;
-  --surface-bright: #303a33;
-  --surface-selected: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-canvas));
-  
-  --border-subtle: #232b26;
-  --border-strong: #3a4b41;
+  --bg-canvas: #0d1012;
+  --surface-neutral: #14181b;
+  --surface-container: #1d2226;
+  --surface-card: #181d20;
+  --surface-elevated: #22282c;
+  --surface-lowest: #111517;
+  --surface-sidebar: #111518;
+  --surface-hover: #23292d;
+  --surface-strong: #2d3438;
+  --surface-bright: #3c4448;
+  --surface-selected: #1c2a25;
+
+  --border-subtle: #2a3135;
+  --border-strong: #475256;
   --border-hairline: rgba(255, 255, 255, 0.07);
-  --border-petrol: #214536;
-  
+  --border-petrol: #35443e;
+
   --text-headline: #f3f4f6;
-  --text-body: #f3f4f6;
-  --text-muted: #94a3b8;
-  --text-dim: #7c8ba1;
-  
-  --accent-primary: #10b981;
-  --accent-primary-hover: #34d399;
-  --accent-petrol: #0d1713;
-  --accent-petrol-hover: #15271e;
+  --text-body: #e3e7ee;
+  --text-muted: #a5afbf;
+  --text-dim: #8995a7;
+
+  --accent-primary: #50c99e;
+  --accent-primary-hover: #78dfb8;
+  --accent-petrol: #172c25;
+  --accent-petrol-hover: #203b31;
   --accent-tertiary: #38bdf8;
   
   --status-success: #10B981;
@@ -221,8 +220,8 @@ input, textarea {
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
+  border-left: 2px solid var(--border-strong);
+  background: var(--surface-lowest);
   padding: 0.6rem 0.9rem;
   margin: 0.75rem 0;
   border-radius: 0 6px 6px 0;
@@ -246,20 +245,77 @@ input, textarea {
 .markdown-body code:not(pre code) {
   font-family: var(--font-mono);
   background: var(--surface-card);
-  color: var(--accent-primary);
+  color: color-mix(in srgb, var(--text-body) 60%, var(--accent-primary));
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-size: 0.86em;
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  border: 1px solid var(--border-subtle);
 }
 
-.markdown-body a {
+.markdown-body a,
+.markdown-file-link {
   color: var(--accent-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.markdown-body a:hover {
+.markdown-file-link {
+  cursor: pointer;
+  text-align: inherit;
+  overflow-wrap: anywhere;
+}
+
+.markdown-body a:hover,
+.markdown-file-link:hover {
   color: var(--accent-primary-hover);
+}
+
+.markdown-table {
+  max-width: 100%;
+  margin-block: 0.85rem;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-lowest);
+}
+
+.markdown-table:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.markdown-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+  line-height: 1.5;
+}
+
+.markdown-table :is(th, td) {
+  min-width: 7rem;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.markdown-table :is(th, td):not([align]) {
+  text-align: start;
+}
+
+.markdown-table thead {
+  background: var(--surface-container);
+  color: var(--text-headline);
+}
+
+.markdown-table thead th {
+  font-weight: 600;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background: var(--surface-card);
+}
+
+.markdown-table tbody tr:last-child > :is(th, td) {
+  border-bottom: 0;
 }
 

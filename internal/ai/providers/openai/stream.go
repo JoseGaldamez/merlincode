@@ -2,11 +2,9 @@ package openai
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -17,195 +15,129 @@ import (
 // StreamChunk es un alias de compatibilidad hacia domain.StreamChunk.
 type StreamChunk = domain.StreamChunk
 
-type openAIStreamChunkResponse struct {
-	Choices []struct {
-		Delta struct {
-			Content          string `json:"content"`
-			ReasoningContent string `json:"reasoning_content"`
-		} `json:"delta"`
-		FinishReason *string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int64 `json:"prompt_tokens"`
-		CompletionTokens int64 `json:"completion_tokens"`
-	} `json:"usage,omitempty"`
-	Error *struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-		Code    any    `json:"code"`
-	} `json:"error,omitempty"`
+type responseStreamEvent struct {
+	Type     string          `json:"type"`
+	Delta    string          `json:"delta"`
+	Code     string          `json:"code"`
+	Message  string          `json:"message"`
+	Response *openAIResponse `json:"response"`
 }
 
-// StreamChat realiza una llamada en streaming vía SSE a OpenAI (/v1/chat/completions con stream: true).
-func (Client) StreamChat(
-	ctx context.Context,
-	apiKey string,
-	model string,
-	messages []domain.ChatMessage,
-	onChunk func(chunk StreamChunk) error,
-) (*domain.ChatCompletionResult, error) {
+func (c Client) StreamChat(ctx context.Context, apiKey, model string, messages []domain.ChatMessage,
+	onChunk func(StreamChunk) error) (*domain.ChatCompletionResult, error) {
+	return c.StreamChatWithTools(ctx, apiKey, model, messages, nil, onChunk)
+}
+
+// StreamChatWithTools streams a stateless Responses API request using only Merlin's local tools.
+func (Client) StreamChatWithTools(ctx context.Context, apiKey, model string, messages []domain.ChatMessage,
+	tools []domain.ToolDefinition, onChunk func(StreamChunk) error) (*domain.ChatCompletionResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
-	model = strings.TrimSpace(model)
 	if apiKey == "" {
 		return nil, errors.New("la clave de API de OpenAI no puede estar vacía")
 	}
+	model = strings.TrimSpace(model)
 	if model == "" {
-		model = "gpt-5.6-terra"
+		model = defaultModel
 	}
-
-	type chatReqMsg struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-
-	var reqMessages []chatReqMsg
-	for _, m := range messages {
-		role := string(m.Role)
-		if role == "" {
-			role = "user"
-		}
-		reqMessages = append(reqMessages, chatReqMsg{
-			Role:    role,
-			Content: m.Content,
-		})
-	}
-
-	if len(reqMessages) == 0 {
-		return nil, errors.New("no hay mensajes para enviar a OpenAI")
-	}
-
-	reqBody := struct {
-		MaxOutputTokens int          `json:"max_completion_tokens"`
-		Model           string       `json:"model"`
-		Messages        []chatReqMsg `json:"messages"`
-		Stream          bool         `json:"stream"`
-		StreamOptions   *struct {
-			IncludeUsage bool `json:"include_usage"`
-		} `json:"stream_options,omitempty"`
-	}{
-		MaxOutputTokens: 4096,
-		Model:           model,
-		Messages:        reqMessages,
-		Stream:          true,
-		StreamOptions: &struct {
-			IncludeUsage bool `json:"include_usage"`
-		}{
-			IncludeUsage: true,
-		},
-	}
-
-	payload, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("error codificando solicitud a OpenAI: %w", err)
-	}
-
-	endpoint := "https://api.openai.com/v1/chat/completions"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	input, err := responsesInput(messages)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Accept", "text/event-stream")
-
+	requestTools := make([]responseTool, 0, len(tools))
+	for _, tool := range tools {
+		requestTools = append(requestTools, responseTool{
+			Type: "function", Name: tool.Name, Description: tool.Description, Parameters: tool.InputSchema,
+			// Preserve the optional fields accepted by Merlin's existing tools.
+			Strict: false,
+		})
+	}
+	req, err := newResponsesRequest(ctx, apiKey, responsesRequest{
+		Model: model, Input: input, Tools: requestTools, Reasoning: reasoningForModel(model),
+		MaxOutputTokens: 4096, Store: false, Stream: true,
+	})
+	if err != nil {
+		return nil, err
+	}
 	resp, err := transport.StreamClient.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, errors.New(transport.SanitizeTransportError(err, "OpenAI"))
 	}
 	defer transport.CloseHTTPResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		var errResp openAIStreamChunkResponse
-		_ = transport.DecodeJSONLimited(resp.Body, &errResp, transport.DefaultMaxResponseBytes)
-		if errResp.Error != nil && errResp.Error.Message != "" {
-			errLow := strings.ToLower(errResp.Error.Message)
-			codeStr := strings.ToLower(fmt.Sprintf("%v", errResp.Error.Code))
-			if strings.Contains(errLow, "quota") || strings.Contains(errLow, "billing") || codeStr == "insufficient_quota" {
-				return nil, errors.New("tu cuenta de OpenAI no tiene saldo disponible o excedió su cuota de uso (insufficient_quota). Recarga créditos en platform.openai.com/settings/organization/billing.")
-			}
-			if strings.Contains(errLow, "does not exist") || strings.Contains(errLow, "not found") || codeStr == "model_not_found" {
-				return nil, fmt.Errorf("el modelo '%s' no existe en la API de OpenAI o tu cuenta no tiene acceso a él", model)
-			}
-			if resp.StatusCode == http.StatusTooManyRequests {
-				return nil, errors.New("OpenAI limitó temporalmente las solicitudes por exceso de peticiones por minuto (Rate Limit). Intenta de nuevo más tarde.")
-			}
-		}
-		return nil, errors.New(transport.SafeProviderHTTPError("OpenAI", resp.StatusCode))
+		var rejected openAIResponse
+		_ = transport.DecodeJSONLimited(resp.Body, &rejected, transport.DefaultMaxResponseBytes)
+		return nil, responseFailure(resp.StatusCode, rejected.Error)
 	}
 
+	return readResponsesStream(ctx, resp, model, onChunk)
+}
+
+func readResponsesStream(ctx context.Context, resp *http.Response, model string,
+	onChunk func(StreamChunk) error) (*domain.ChatCompletionResult, error) {
 	scanner := bufio.NewScanner(transport.LimitedStreamReader(resp.Body))
-	buf := make([]byte, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-
-	var totalText strings.Builder
-	var totalThinking strings.Builder
-	var promptTokens int64
-	var completionTokens int64
-
+	scanner.Buffer(make([]byte, 64*1024), transport.DefaultMaxResponseBytes)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, ":") {
-			continue
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-
+		line := scanner.Text()
 		if !strings.HasPrefix(line, "data:") {
 			continue
 		}
-
-		dataContent := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if dataContent == "[DONE]" {
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
 			break
 		}
-
-		var chunk openAIStreamChunkResponse
-		if err := json.Unmarshal([]byte(dataContent), &chunk); err != nil {
-			continue
+		var event responseStreamEvent
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			return nil, errors.New("OpenAI devolvió un evento de streaming inválido")
 		}
-
-		if chunk.Usage != nil {
-			promptTokens = chunk.Usage.PromptTokens
-			completionTokens = chunk.Usage.CompletionTokens
-		}
-
-		for _, choice := range chunk.Choices {
-			if choice.Delta.ReasoningContent != "" {
-				totalThinking.WriteString(choice.Delta.ReasoningContent)
+		switch event.Type {
+		case "response.output_text.delta", "response.refusal.delta":
+			if onChunk != nil && event.Delta != "" {
+				if err := onChunk(StreamChunk{Type: domain.ChunkTypeContent, Text: event.Delta}); err != nil {
+					return nil, err
+				}
+			}
+		case "response.reasoning_summary_text.delta":
+			if onChunk != nil && event.Delta != "" {
+				if err := onChunk(StreamChunk{Type: domain.ChunkTypeThinking, Thinking: event.Delta}); err != nil {
+					return nil, err
+				}
+			}
+		case "response.completed", "response.incomplete", "response.failed":
+			if event.Response == nil {
+				return nil, errors.New("OpenAI devolvió un evento final sin respuesta")
+			}
+			if event.Type != "response.completed" && event.Response.Status == "completed" {
+				return nil, errors.New("OpenAI devolvió un estado de respuesta incoherente")
+			}
+			result, err := event.Response.completion(model)
+			if err != nil {
+				return result, err
+			}
+			// The completed output has the full arguments. Never execute a partial call.
+			for _, call := range result.ToolCalls {
 				if onChunk != nil {
-					if err := onChunk(StreamChunk{
-						Type:     domain.ChunkTypeThinking,
-						Thinking: choice.Delta.ReasoningContent,
-					}); err != nil {
-						return nil, err
+					if err := onChunk(StreamChunk{Type: domain.ChunkTypeToolCall, ToolCall: &call}); err != nil {
+						return result, err
 					}
 				}
 			}
-			if choice.Delta.Content != "" {
-				totalText.WriteString(choice.Delta.Content)
-				if onChunk != nil {
-					if err := onChunk(StreamChunk{
-						Type: domain.ChunkTypeContent,
-						Text: choice.Delta.Content,
-					}); err != nil {
-						return nil, err
-					}
-				}
-			}
+			return result, nil
+		case "error":
+			return nil, responseFailure(0, &responseError{Code: event.Code, Message: event.Message})
 		}
 	}
-
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := scanner.Err(); err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		return nil, errors.New(transport.SanitizeTransportError(err, "el proveedor"))
+		return nil, errors.New(transport.SanitizeTransportError(err, "OpenAI"))
 	}
-
-	return &domain.ChatCompletionResult{
-		Content:          totalText.String(),
-		Thinking:         totalThinking.String(),
-		Model:            model,
-		TokensPrompt:     promptTokens,
-		TokensCompletion: completionTokens,
-	}, nil
+	return nil, errors.New("el streaming de OpenAI se interrumpió antes de completar la respuesta")
 }

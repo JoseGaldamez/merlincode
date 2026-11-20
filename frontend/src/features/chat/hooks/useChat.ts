@@ -10,6 +10,7 @@ import {
 import { domain } from '../../../../wailsjs/go/models';
 import { EventsOn } from '../../../../wailsjs/runtime/runtime';
 import { proposalsFromTrace } from '../../executions/proposals';
+import { activityFromTrace } from '../toolActivity';
 
 interface UseChatOptions {
   activeProject?: Project | null;
@@ -108,8 +109,10 @@ export function useChat({
             durationSeconds: rec.durationSeconds,
             tokensPrompt: rec.tokensPrompt,
             tokensCompletion: rec.tokensCompletion,
+            cost: rec.cost,
             modelId: rec.modelId || undefined,
             feedback: (rec.feedback as 'like' | 'dislike') || null,
+            toolActivity: activityFromTrace(rec.toolTrace),
             runProposals: proposalsFromTrace(rec.toolTrace),
           }));
           setMessages(loaded);
@@ -132,7 +135,16 @@ export function useChat({
   // Escuchar eventos en streaming emitidos por el backend de Go
   useEffect(() => {
     const unsubscribe = EventsOn('chat:stream', (event: ChatStreamEvent) => {
-      if (!event || event.messageId !== currentStreamingIdRef.current) return;
+      if (!event) return;
+      if (event.messageId !== currentStreamingIdRef.current) {
+        // A canceled turn can finish persisting after the UI releases its streaming slot.
+        if (event.cost && (event.type === 'done' || event.type === 'error')) {
+          setMessages((previous) => previous.map((message) => message.id === event.messageId
+            ? { ...message, cost: event.cost, tokensPrompt: event.tokensPrompt ?? 0, tokensCompletion: event.tokensCompletion ?? 0 }
+            : message));
+        }
+        return;
+      }
 
       if (event.type === 'run_proposed') {
         setMessages((previous) => previous.map((message) => message.id === event.messageId
@@ -272,6 +284,7 @@ export function useChat({
                   durationSeconds: elapsedSec,
                   tokensPrompt: event.tokensPrompt || m.tokensPrompt || 0,
                   tokensCompletion: event.tokensCompletion || m.tokensCompletion || 0,
+                  cost: event.cost,
                   modelId: event.modelId || m.modelId,
                   toolActivity: (m.toolActivity || []).map((a) =>
                     a.status === 'running' || a.status === 'awaiting_approval' ? { ...a, status: 'done' as const } : a
@@ -319,6 +332,9 @@ export function useChat({
                   ...m,
                   content: m.content ? `${m.content}\n\n[Error: ${errMsg}]` : `Error: ${errMsg}`,
                   status: 'error',
+                  tokensPrompt: event.tokensPrompt,
+                  tokensCompletion: event.tokensCompletion,
+                  cost: event.cost,
                   toolActivity: (m.toolActivity || []).map((a) =>
                     a.status === 'running' || a.status === 'awaiting_approval' ? { ...a, status: 'error' as const } : a
                   ),

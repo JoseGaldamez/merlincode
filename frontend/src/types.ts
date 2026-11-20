@@ -22,6 +22,12 @@ export type MessageAction =
   | { type: 'open_folder'; label: string }
   | { type: 'tool_approval'; label: string; request: ToolApprovalRequest };
 
+export interface TurnCost {
+  nanosUsd?: number | null;
+  partial: boolean;
+  requests: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -40,6 +46,7 @@ export interface Message {
   durationSeconds?: number;
   tokensPrompt?: number;
   tokensCompletion?: number;
+  cost?: TurnCost;
   feedback?: 'like' | 'dislike' | null;
   toolActivity?: ToolActivityEntry[];
   runProposals?: RunProposal[];
@@ -102,6 +109,7 @@ export interface ChatStreamEvent {
   modelId?: string;
   tokensPrompt?: number;
   tokensCompletion?: number;
+  cost?: TurnCost;
   toolName?: string;
   toolCallId?: string;
   toolArgsSummary?: string;

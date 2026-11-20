@@ -144,7 +144,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold tracking-wider text-content-dim font-mono">ARTEFACTOS</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-selected text-accent-primary font-medium">{artifacts.length}</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container text-content-muted font-medium">{artifacts.length}</span>
             </div>
             <button
               type="button"
@@ -214,7 +214,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 savePreference(COLLAPSED_KEY, String(next));
               }}>
               <IconPlay size={13} className="text-accent-primary shrink-0" />
-              <span className={`flex-1 text-left text-[11px] font-semibold tracking-wider font-mono truncate ${executionsCollapsed ? 'text-content-dim' : 'text-accent-primary'}`}>EJECUCIONES</span>
+              <span className={`flex-1 text-left text-[11px] font-semibold tracking-wider font-mono truncate ${executionsCollapsed ? 'text-content-dim' : 'text-content-muted'}`}>EJECUCIONES</span>
               <span className="p-1 text-content-dim shrink-0">{executionsCollapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}</span>
             </button>
             <div id={executionsId} hidden={executionsCollapsed} className="flex-1 min-h-0 overflow-y-auto px-1.5 py-1.5">

@@ -2,7 +2,6 @@ package openai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -15,6 +14,8 @@ import (
 
 // Client verifica credenciales, consulta consumo y envía mensajes a OpenAI.
 type Client struct{}
+
+const defaultModel = "gpt-6.2-sol"
 
 type openAIModelsResponse struct {
 	Data []struct {
@@ -111,61 +112,27 @@ func (Client) FetchUsage(ctx context.Context, _ string, adminKey string) (domain
 	}, nil
 }
 
-type openAIChatRequest struct {
-	Model     string `json:"model"`
-	MaxTokens int    `json:"max_tokens"`
-	Messages  []struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	} `json:"messages"`
-}
-
-type openAIChatResponse struct {
-	Model   string `json:"model"`
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Error *struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-		Code    any    `json:"code"`
-	} `json:"error"`
-}
-
-// SendTestMessage envía un mensaje de prueba a /v1/chat/completions usando la clave de API estándar.
-func (Client) SendTestMessage(ctx context.Context, apiKey string, message string, model string) (domain.TestMessageResult, error) {
+// SendTestMessage prueba el mismo modelo y endpoint que usa el chat.
+func (Client) SendTestMessage(ctx context.Context, apiKey, message, model string) (domain.TestMessageResult, error) {
 	apiKey = strings.TrimSpace(apiKey)
-	message = strings.TrimSpace(message)
-	model = strings.TrimSpace(model)
 	if apiKey == "" {
 		return domain.TestMessageResult{Success: false, Message: "Configura y verifica una clave de API primero."}, nil
 	}
+	message = strings.TrimSpace(message)
 	if message == "" {
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
+	model = strings.TrimSpace(model)
 	if model == "" {
-		model = "gpt-5.6-terra"
+		model = defaultModel
 	}
-
-	reqBody := openAIChatRequest{Model: model, MaxTokens: 256}
-	reqBody.Messages = []struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}{{Role: "user", Content: message}}
-
-	payload, err := json.Marshal(reqBody)
+	req, err := newResponsesRequest(ctx, apiKey, responsesRequest{
+		Model: model, Input: []any{responseMessage{Role: "user", Content: message}},
+		Reasoning: reasoningForModel(model), MaxOutputTokens: 256, Store: false,
+	})
 	if err != nil {
 		return domain.TestMessageResult{}, err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", strings.NewReader(string(payload)))
-	if err != nil {
-		return domain.TestMessageResult{}, err
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := transport.Client.Do(req)
 	if err != nil {
@@ -173,47 +140,24 @@ func (Client) SendTestMessage(ctx context.Context, apiKey string, message string
 	}
 	defer transport.CloseHTTPResponse(resp)
 
-	var parsed openAIChatResponse
-	if err := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes); err != nil {
-		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(err, "OpenAI")}, nil
-	}
-
+	var parsed openAIResponse
+	decodeErr := transport.DecodeJSONLimited(resp.Body, &parsed, transport.DefaultMaxResponseBytes)
 	if resp.StatusCode != http.StatusOK {
-		if parsed.Error != nil && parsed.Error.Message != "" {
-			errLow := strings.ToLower(parsed.Error.Message)
-			codeStr := strings.ToLower(fmt.Sprintf("%v", parsed.Error.Code))
-			if strings.Contains(errLow, "quota") || strings.Contains(errLow, "billing") || codeStr == "insufficient_quota" {
-				return domain.TestMessageResult{
-					Success: false,
-					Message: "Tu cuenta de OpenAI no tiene saldo disponible o excedió su cuota de uso (insufficient_quota). Recarga créditos en platform.openai.com/settings/organization/billing.",
-				}, nil
-			}
-			if strings.Contains(errLow, "does not exist") || strings.Contains(errLow, "not found") || codeStr == "model_not_found" {
-				return domain.TestMessageResult{
-					Success: false,
-					Message: fmt.Sprintf("El modelo '%s' no existe en la API de OpenAI o tu cuenta no tiene acceso a él.", model),
-				}, nil
-			}
-			if resp.StatusCode == http.StatusTooManyRequests {
-				return domain.TestMessageResult{
-					Success: false,
-					Message: "OpenAI limitó temporalmente las solicitudes por exceso de peticiones por minuto (Rate Limit). Intenta de nuevo más tarde.",
-				}, nil
-			}
-		}
-		return domain.TestMessageResult{Success: false, Message: transport.SafeProviderHTTPError("OpenAI", resp.StatusCode)}, nil
+		return domain.TestMessageResult{Success: false, Message: responseFailure(resp.StatusCode, parsed.Error).Error()}, nil
 	}
-
-	var text string
-	if len(parsed.Choices) > 0 {
-		text = parsed.Choices[0].Message.Content
+	if decodeErr != nil {
+		return domain.TestMessageResult{Success: false, Message: transport.SanitizeTransportError(decodeErr, "OpenAI")}, nil
+	}
+	result, err := parsed.completion(model)
+	if err != nil {
+		return domain.TestMessageResult{Success: false, Message: err.Error()}, nil
 	}
 
 	return domain.TestMessageResult{
 		Success:      true,
 		Message:      "El modelo respondió correctamente. Este consumo debería aparecer en el reporte de uso en unos minutos.",
-		ResponseText: text,
-		Model:        parsed.Model,
+		ResponseText: result.Content,
+		Model:        result.Model,
 	}, nil
 }
 

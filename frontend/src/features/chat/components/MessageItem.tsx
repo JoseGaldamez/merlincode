@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Message } from '../../../types';
+import { formatCost } from '../../../formatCost';
 import logoImg from '../../../assets/images/logo.png';
 import {
   IconFolder,
@@ -17,6 +18,7 @@ import { RunProposalCard } from '../../executions/RunProposalCard';
 interface MessageItemProps {
   message: Message;
   onOpenFolder?: () => void;
+  onPreviewFile?: (path: string) => void;
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike' | null) => void;
   onResolveApproval?: (messageId: string, requestId: string, approved: boolean, editedContent?: string) => void;
 }
@@ -60,8 +62,11 @@ const LiveTimer: React.FC<{
   );
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder, onFeedback, onResolveApproval }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder, onPreviewFile, onFeedback, onResolveApproval }) => {
   const isAssistant = message.role === 'assistant';
+  const canActOnResponse = message.status === 'done' && Boolean(message.content);
+  const hasUsage = message.tokensPrompt != null || message.tokensCompletion != null || message.cost != null;
+  const totalTokens = (message.tokensPrompt ?? 0) + (message.tokensCompletion ?? 0);
   const isLive =
     isAssistant &&
     (message.status === 'thinking' ||
@@ -124,7 +129,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               </>
             ) : (
               <>
-                <div className="w-5 h-5 rounded flex items-center justify-center bg-surface-selected text-accent-primary text-[10px] font-mono font-bold border border-border-petrol">
+                <div className="w-5 h-5 rounded flex items-center justify-center bg-surface-container text-content-muted text-[10px] font-mono font-bold border border-border-subtle">
                   <span>TU</span>
                 </div>
                 <span className="text-xs font-mono font-bold text-content-dim tracking-wider">
@@ -151,7 +156,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
           className={`text-md leading-relaxed transition-all ${
             isAssistant
               ? 'w-full py-1 px-1 text-content-body'
-              : 'p-3.5 md:p-4 rounded-2xl rounded-tr-sm bg-surface-selected border border-border-petrol text-content-headline text-left max-w-full'
+              : 'p-3.5 md:p-4 rounded-2xl rounded-tr-sm bg-surface-container border border-border-subtle text-content-body text-left max-w-full'
           }`}
         >
           {message.status === 'error' ? (
@@ -169,7 +174,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
               <span>Conectando y procesando respuesta...</span>
             </div>
           ) : (
-            <FormattedMessageContent content={message.content} messageId={message.id} />
+            <FormattedMessageContent
+              content={message.content}
+              messageId={message.id}
+              onPreviewFile={isAssistant && !isLive ? onPreviewFile : undefined}
+            />
           )}
 
           {/* Optional Action Button inside message */}
@@ -201,10 +210,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
           {isAssistant && message.runProposals?.map((proposal) => <RunProposalCard key={proposal.id} proposal={proposal} />)}
 
           {/* Footer toolbar: SOLO visible cuando la respuesta ha terminado por completo */}
-          {isAssistant && message.status === 'done' && message.content && (
-            <div className="flex items-center justify-between gap-3 mt-3.5 pt-2.5 border-t border-border-subtle/25">
+          {isAssistant && !isLive && (canActOnResponse || hasUsage) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-3.5 pt-2.5 border-t border-border-subtle/25">
               {/* Botones de acción: Copiar y Calificar */}
-              <div className="flex items-center gap-1.5">
+              {canActOnResponse && <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={handleCopy}
@@ -247,17 +256,22 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onOpenFolder,
                 >
                   <IconThumbDown size={13} />
                 </button>
-              </div>
+              </div>}
 
-              {/* Conteo de tokens de entrada y salida */}
-              {(message.tokensPrompt != null || message.tokensCompletion != null) && (
-                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-content-dim/80 bg-surface-neutral px-2.5 py-1 rounded-md border border-border-subtle/40 select-none">
-                  <span className="text-content-dim/50">Tokens:</span>
-                  <span className="text-content-headline font-semibold">{message.tokensPrompt ?? 0}</span>
-                  <span className="text-content-dim/60">entrada</span>
-                  <span className="text-content-dim/30">·</span>
-                  <span className="text-content-headline font-semibold">{message.tokensCompletion ?? 0}</span>
-                  <span className="text-content-dim/60">salida</span>
+              {hasUsage && (
+                <div className="ml-auto inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-mono text-content-dim bg-surface-neutral px-2.5 py-1 rounded-md border border-border-subtle/40 select-none">
+                  <span>
+                    <strong className="text-content-headline font-semibold">{totalTokens.toLocaleString()}</strong>
+                    {message.cost && !message.cost.partial ? ' tokens en total' : ' tokens registrados'}
+                  </span>
+                  <span>{(message.tokensPrompt ?? 0).toLocaleString()} entrada</span>
+                  <span>{(message.tokensCompletion ?? 0).toLocaleString()} salida</span>
+                  {message.cost && (
+                    <span className={message.cost.nanosUsd == null ? 'text-content-muted' : 'text-accent-primary'}>
+                      {message.cost.nanosUsd == null ? 'Costo no disponible' :
+                        `${formatCost(message.cost.nanosUsd)} ${message.cost.partial ? 'estimados (parcial)' : 'estimados'}`}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

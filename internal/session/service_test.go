@@ -9,6 +9,60 @@ import (
 	"merlincode/internal/session"
 )
 
+func TestTodayAIUsagePersistsByProviderAndLocalDay(t *testing.T) {
+	ctx := context.Background()
+	svc, err := session.NewService("file:dailycost?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+
+	local := time.FixedZone("UTC-6", -6*60*60)
+	now := time.Date(2026, time.November, 20, 16, 0, 0, 0, local)
+	amount := int64(1_234_567)
+	cost := &domain.TurnCost{NanosUSD: &amount, Requests: 2}
+	for _, record := range []domain.ChatMessageRecord{
+		{ID: "today", ProviderID: "openai", CreatedAt: now.UTC(), Cost: cost},
+		{ID: "today", ProviderID: "openai", CreatedAt: now.UTC(), Cost: cost},
+		{ID: "unknown", ProviderID: "openai", CreatedAt: now.UTC(), Cost: &domain.TurnCost{Partial: true, Requests: 1}},
+		{ID: "yesterday", ProviderID: "openai", CreatedAt: now.Add(-18 * time.Hour).UTC(), Cost: cost},
+		{ID: "other", ProviderID: "google", CreatedAt: now.UTC(), Cost: cost},
+		{ID: "legacy", ProviderID: "openai", CreatedAt: now.UTC()},
+	} {
+		record.SessionID, record.Role = "session", domain.ChatRoleAssistant
+		record.TokensPrompt, record.TokensCompletion = 20, 10
+		if err := svc.SaveMessage(ctx, record); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	messages, err := svc.GetSessionMessages(ctx, "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, message := range messages {
+		if message.ID == "today" && (message.Cost == nil || message.Cost.NanosUSD == nil || *message.Cost.NanosUSD != amount) {
+			t.Fatalf("message cost missing: %+v", message.Cost)
+		}
+		if message.ID == "legacy" && message.Cost != nil {
+			t.Fatal("historic costs cannot be inferred")
+		}
+	}
+	checkToday := func() {
+		t.Helper()
+		daily, err := svc.GetTodayAIUsage(ctx, "openai", now)
+		if err != nil || daily.TokensPrompt != 40 || daily.TokensCompletion != 20 ||
+			daily.Cost.Requests != 3 || !daily.Cost.Partial || daily.Cost.NanosUSD == nil || *daily.Cost.NanosUSD != amount {
+			t.Fatalf("incorrect daily total: %+v, %v", daily, err)
+		}
+	}
+	checkToday()
+	if err := svc.DeleteSession(ctx, "session"); err != nil {
+		t.Fatal(err)
+	}
+	checkToday()
+}
+
 func TestSessionService(t *testing.T) {
 	ctx := context.Background()
 	// Usamos base de datos SQLite en memoria para tests rápidos y limpios

@@ -1,12 +1,21 @@
 import { randomBytes } from 'node:crypto';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({ command }) => {
   // Only the loopback development server needs React Refresh's inline preamble.
   const nonce = command === 'serve' ? randomBytes(24).toString('base64') : undefined;
   return {
-    plugins: [react(), {
+    plugins: [react(), viteStaticCopy({
+      targets: [{
+        src: [
+          'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+          'node_modules/pdfjs-dist/{cmaps,standard_fonts,wasm,iccs}',
+        ],
+        dest: 'pdfjs',
+      }],
+    }), {
       name: 'merlin-dev-csp',
       apply: 'serve',
       transformIndexHtml: {

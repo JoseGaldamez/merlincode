@@ -6,6 +6,7 @@ import { RightSidebar, useArtifacts } from './features/artifacts';
 import { ChatArea, useChat } from './features/chat';
 import { SettingsModal, useSettingsForm, useAIProviderStatus } from './features/settings';
 import { useProjects } from './features/projects';
+import { FilePreviewModal } from './features/projects/components/FilePreviewModal';
 import { ExecutionProvider } from './features/executions/ExecutionProvider';
 import { ExecutionFlight } from './features/executions/ExecutionFlight';
 import type { ExecutionFocus } from './features/executions/types';
@@ -14,6 +15,7 @@ import './features/executions/executions.css';
 export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [executionFocus, setExecutionFocus] = useState<ExecutionFocus>();
+  const [filePreview, setFilePreview] = useState<{ project: string; path: string }>();
 
   // Estado global de configuración de IA y estado de credenciales en el llavero
   const { statuses, refreshStatuses } = useAIProviderStatus();
@@ -30,6 +32,16 @@ export function App() {
     deleteProject,
     addProject,
   } = useProjects();
+
+  const projectPath = activeProject?.path;
+  const openFilePreview = useCallback((path: string) => {
+    if (projectPath) setFilePreview({ project: projectPath, path });
+  }, [projectPath]);
+
+  const closeFilePreview = useCallback(() => setFilePreview(undefined), []);
+  useEffect(() => {
+    closeFilePreview();
+  }, [projectPath, closeFilePreview]);
 
   // Historial de sesiones y búsqueda
   const {
@@ -162,6 +174,7 @@ export function App() {
           projectName={activeProject?.name || ''}
           projectPath={activeProject?.path}
           onOpenFolder={openFolderDialog}
+          onPreviewFile={projectPath ? openFilePreview : undefined}
         />
 
         <ChatArea
@@ -172,6 +185,7 @@ export function App() {
           streamingStatusText={streamingStatusText}
           activeProjectName={activeProject?.name}
           onOpenFolder={openFolderDialog}
+          onPreviewFile={projectPath ? openFilePreview : undefined}
           onFeedback={handleFeedback}
           onResolveApproval={resolveToolApproval}
           activeModel={settings.model || telemetry.activeModel}
@@ -203,6 +217,14 @@ export function App() {
           setTelemetry((prev) => ({ ...prev, ...updated }));
         }}
       />
+      {filePreview && filePreview.project === projectPath && (
+        <FilePreviewModal
+          key={filePreview.path}
+          project={filePreview.project}
+          path={filePreview.path}
+          onClose={closeFilePreview}
+        />
+      )}
       <ExecutionFlight focus={executionFocus} />
     </div>
     </ExecutionProvider>

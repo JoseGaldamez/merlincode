@@ -14,6 +14,8 @@ import (
 // Client verifica credenciales, consulta saldo y envía mensajes a DeepSeek.
 type Client struct{}
 
+const defaultModel = "deepseek-flash"
+
 type deepSeekBalanceResponse struct {
 	IsAvailable bool `json:"is_available"`
 	BalanceInfo []struct {
@@ -29,9 +31,10 @@ type deepSeekModelsResponse struct {
 }
 
 type deepSeekChatRequest struct {
-	Model     string `json:"model"`
-	MaxTokens int    `json:"max_tokens"`
-	Messages  []struct {
+	Model           string `json:"model"`
+	MaxTokens       int    `json:"max_tokens"`
+	ReasoningEffort string `json:"reasoning_effort"`
+	Messages        []struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"messages"`
@@ -162,10 +165,10 @@ func (Client) SendTestMessage(ctx context.Context, apiKey string, message string
 		message = "Responde brevemente: ¿estás funcionando correctamente?"
 	}
 	if model == "" {
-		model = "deepseek-v4-pro"
+		model = defaultModel
 	}
 
-	reqBody := deepSeekChatRequest{Model: model, MaxTokens: 256}
+	reqBody := deepSeekChatRequest{Model: model, MaxTokens: 256, ReasoningEffort: "none"}
 	reqBody.Messages = []struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`

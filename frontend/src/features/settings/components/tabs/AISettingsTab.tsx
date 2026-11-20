@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SettingsState } from '../../types';
-import { AgentTelemetry } from '../../../../types';
+import { DailyUsageCards } from '../DailyUsageCards';
 import { AI_PROVIDERS, getProviderConfig } from '../../constants';
 import { BrowserOpenURL } from '../../../../../wailsjs/runtime/runtime';
 import { useAIProviderStatus } from '../../hooks/useAIProviderStatus';
@@ -21,33 +21,11 @@ import {
 interface AISettingsTabProps {
   settings: SettingsState;
   onUpdate: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
-  telemetry?: AgentTelemetry;
 }
-
-interface DailyUsageRecord {
-  date: string;
-  promptTokens: number;
-  completionTokens: number;
-}
-
-const getStoredDailyUsage = (): DailyUsageRecord => {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  try {
-    const raw = localStorage.getItem('merlin_daily_tokens');
-    if (raw) {
-      const parsed: DailyUsageRecord = JSON.parse(raw);
-      if (parsed.date === todayStr) {
-        return parsed;
-      }
-    }
-  } catch {}
-  return { date: todayStr, promptTokens: 0, completionTokens: 0 };
-};
 
 export const AISettingsTab: React.FC<AISettingsTabProps> = ({
   settings,
   onUpdate,
-  telemetry,
 }) => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [draftKey, setDraftKey] = useState('');
@@ -55,7 +33,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
   const [keyTab, setKeyTab] = useState<'api' | 'admin'>('api');
   const [showAdminKey, setShowAdminKey] = useState(false);
   const [draftAdminKey, setDraftAdminKey] = useState('');
-  const [adminKeySaved, setAdminKeySaved] = useState(false);
   const [testMessage, setTestMessage] = useState('¿Estás funcionando correctamente?');
   const [testMessageResult, setTestMessageResult] = useState<{
     success: boolean;
@@ -66,22 +43,18 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
 
   const currentProvider = getProviderConfig(settings.modelProvider);
   const {
+    statuses,
     getStatus,
     validateAndSaveKey,
     clearKey,
     validatingProviderId,
     saveAdminKey,
     clearAdminKey,
-    fetchUsage,
-    getUsage,
-    loadingUsageProviderId,
     sendTestMessage,
     sendingTestMessageProviderId,
   } = useAIProviderStatus();
   const currentStatus = getStatus(settings.modelProvider);
   const isValidating = validatingProviderId === settings.modelProvider;
-  const currentUsage = getUsage(settings.modelProvider);
-  const isLoadingUsage = loadingUsageProviderId === settings.modelProvider;
   const isSendingTestMessage = sendingTestMessageProviderId === settings.modelProvider;
 
   // Al cambiar de proveedor, limpiar el borrador y el resultado de validación:
@@ -93,17 +66,8 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     setKeyTab('api');
     setDraftAdminKey('');
     setShowAdminKey(false);
-    setAdminKeySaved(false);
     setTestMessageResult(null);
   }, [settings.modelProvider]);
-
-  // Al configurar/verificar la clave, consultar en vivo el consumo/costo o saldo real
-  // reportado por el proveedor (si su API lo expone con la clave estándar o la admin key)
-  useEffect(() => {
-    if (currentStatus.configured && currentStatus.verified) {
-      fetchUsage(settings.modelProvider);
-    }
-  }, [settings.modelProvider, currentStatus.configured, currentStatus.verified, currentStatus.hasAdminKey, fetchUsage]);
 
   const handleValidateAndSave = async () => {
     if (!draftKey.trim()) return;
@@ -133,9 +97,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
     try {
       const result = await sendTestMessage(settings.modelProvider, testMessage.trim(), settings.model);
       setTestMessageResult(result);
-      if (result.success) {
-        fetchUsage(settings.modelProvider);
-      }
     } catch (err) {
       setTestMessageResult({
         success: false,
@@ -143,47 +104,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
       });
     }
   };
-
-  // Persistir tokens en localStorage si la telemetría viva se incrementa
-  useEffect(() => {
-    if (telemetry && (telemetry.tokensPrompt > 0 || telemetry.tokensCompletion > 0)) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const existing = getStoredDailyUsage();
-      const updated: DailyUsageRecord = {
-        date: todayStr,
-        promptTokens: Math.max(existing.promptTokens, telemetry.tokensPrompt),
-        completionTokens: Math.max(existing.completionTokens, telemetry.tokensCompletion),
-      };
-      try {
-        localStorage.setItem('merlin_daily_tokens', JSON.stringify(updated));
-      } catch {}
-    }
-  }, [telemetry?.tokensPrompt, telemetry?.tokensCompletion]);
-
-  // Cálculo de tokens del día de hoy
-  const stored = getStoredDailyUsage();
-  const livePrompt = telemetry?.tokensPrompt ?? 0;
-  const liveCompletion = telemetry?.tokensCompletion ?? 0;
-
-  const todayPrompt = Math.max(stored.promptTokens, livePrompt);
-  const todayCompletion = Math.max(stored.completionTokens, liveCompletion);
-  const totalTokens = todayPrompt + todayCompletion;
-
-  // Cálculo de dinero en USD según la tarifa del proveedor activo
-  const pricing = currentProvider.pricing;
-  const promptCostUsd = (todayPrompt * pricing.promptPerMillion) / 1_000_000;
-  const completionCostUsd = (todayCompletion * pricing.completionPerMillion) / 1_000_000;
-  const totalCostUsd = promptCostUsd + completionCostUsd;
-
-  const formatCost = (val: number) => {
-    if (val === 0) return '$0.00 USD';
-    if (val < 0.001) return '< $0.001 USD';
-    if (val < 0.01) return `$${val.toFixed(4)} USD`;
-    return `$${val.toFixed(2)} USD`;
-  };
-
-  const promptPct = totalTokens > 0 ? Math.round((todayPrompt / totalTokens) * 100) : 50;
-  const completionPct = totalTokens > 0 ? 100 - promptPct : 50;
 
   const renderOfficialLogo = (id: string, size = 22) => {
     switch (id) {
@@ -202,13 +122,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
 
   return (
     <div className="flex flex-col gap-7 max-w-3xl">
-      {settings.modelProvider === 'google' && (
-        <p className="text-xs text-content-dim leading-relaxed">
-          Si usaste Google en una versión antigua, revoca la clave anterior en Google AI Studio
-          y configura una nueva, especialmente si hubo errores de red o compartiste registros.
-          Eliminarla aquí solo borra la copia local.
-        </p>
-      )}
       {/* Sección 1: Selección de Proveedores */}
       <div>
         <div className="mb-3">
@@ -223,17 +136,19 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {AI_PROVIDERS.map((provider) => {
             const isSelected = settings.modelProvider === provider.id;
+            const isUnconfigured = statuses[provider.id]?.configured === false;
 
             return (
               <button
                 key={provider.id}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => onUpdate('modelProvider', provider.id)}
                 className={`relative flex flex-col justify-between p-3.5 rounded-xl border text-left transition-colors cursor-pointer min-h-[102px] ${
                   isSelected
                     ? 'border-accent-primary bg-surface-neutral'
                     : 'border-border-subtle/70 bg-surface-lowest hover:border-border-petrol/60 hover:bg-surface-neutral'
-                }`}
+                } ${isUnconfigured ? 'grayscale' : ''}`}
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="w-10 h-10 rounded-lg bg-surface-card border border-border-subtle/50 flex items-center justify-center shrink-0">
@@ -259,11 +174,11 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                 </div>
 
                 <div className="mt-2.5">
-                  <span className="text-sm font-semibold text-content-headline block leading-tight">
+                  <span className={`text-sm font-semibold block leading-tight ${isUnconfigured ? 'text-content-muted' : 'text-content-headline'}`}>
                     {provider.name}
                   </span>
                   <span className="text-xs text-content-dim block mt-1 leading-tight font-mono text-[11px]">
-                    {provider.badge}
+                    {isUnconfigured ? 'Sin clave' : provider.badge}
                   </span>
                 </div>
               </button>
@@ -281,7 +196,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
           <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
             {keyTab === 'api'
               ? `Credencial requerida para autenticar peticiones directamente con ${currentProvider.name}.`
-              : `${currentProvider.name} requiere una Admin API Key independiente (a nivel de organización) para reportar el consumo de tokens y costo real de la cuenta. Es opcional: sin ella seguirás viendo una estimación local.`}
+              : `Clave opcional de organización de ${currentProvider.name} para consultar sus reportes administrativos.`}
           </p>
         </div>
 
@@ -453,7 +368,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                     type="button"
                     onClick={async () => {
                       await clearAdminKey(settings.modelProvider);
-                      setAdminKeySaved(false);
                     }}
                     className="text-[11px] text-content-dim hover:text-red-400 shrink-0 transition-colors cursor-pointer"
                   >
@@ -467,10 +381,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                       type={showAdminKey ? 'text' : 'password'}
                       className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-content-headline font-mono outline-none transition-colors"
                       value={draftAdminKey}
-                      onChange={(e) => {
-                        setDraftAdminKey(e.target.value);
-                        setAdminKeySaved(false);
-                      }}
+                      onChange={(e) => setDraftAdminKey(e.target.value)}
                       placeholder="sk-ant-admin..."
                       spellCheck={false}
                     />
@@ -491,12 +402,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                         if (!draftAdminKey.trim()) return;
                         await saveAdminKey(settings.modelProvider, draftAdminKey.trim());
                         setDraftAdminKey('');
-                        setAdminKeySaved(true);
-                        try {
-                          await fetchUsage(settings.modelProvider);
-                        } finally {
-                          setAdminKeySaved(false);
-                        }
                       }}
                       disabled={!draftAdminKey.trim()}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-primary text-[#070a0b] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
@@ -505,12 +410,6 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
                     </button>
                   </div>
 
-                  {adminKeySaved && (
-                    <div className="flex items-start gap-1.5 text-xs mt-0.5 text-emerald-400">
-                      <IconCheck size={13} className="shrink-0 mt-0.5" />
-                      <span>Admin Key guardada. Consultando consumo real...</span>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -606,186 +505,7 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
         </div>
       )}
 
-      {/* Sección 3: Consumo de Tokens & Costo (real cuando el proveedor lo expone, estimado en caso contrario) */}
-      <div>
-        <div className="mb-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold tracking-wider text-content-headline uppercase">
-              {currentUsage?.available ? 'Consumo & Costo Real de la Cuenta' : 'Consumo de Tokens & Costo Estimado (Hoy)'}
-            </h3>
-            <span className="text-[11px] font-mono text-content-dim bg-surface-neutral px-2.5 py-0.5 rounded border border-border-subtle/50">
-              {new Date().toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
-            </span>
-          </div>
-          <p className="text-xs text-content-dim mt-0.5 leading-relaxed">
-            {currentUsage?.available
-              ? `Datos reportados en vivo por la cuenta de ${currentProvider.name}.`
-              : `Consumo acumulado de tokens hoy y proyección de costo calculada con las tarifas oficiales de ${currentProvider.name}.`}
-          </p>
-          {isLoadingUsage && (
-            <p className="text-[11px] text-content-dim mt-1 flex items-center gap-1.5">
-              <IconRefresh size={11} className="animate-spin" />
-              Consultando datos reales de la cuenta...
-            </p>
-          )}
-          {!isLoadingUsage && currentUsage && !currentUsage.available && currentStatus.configured && currentStatus.verified && (
-            <p className="text-[11px] text-content-dim mt-1">{currentUsage.message}</p>
-          )}
-        </div>
-
-        {currentUsage?.available && currentUsage.balanceText ? (
-          /* Vista de saldo real (p.ej. DeepSeek): la API solo expone saldo prepagado de la cuenta,
-             no un desglose de tokens por día, así que complementamos con la estimación local */
-          <div className="flex flex-col gap-3">
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60">
-              <div className="flex items-center gap-2 mb-1.5">
-                <IconCheck size={13} className="text-emerald-400 shrink-0" />
-                <span className="text-xs text-content-dim font-medium">Saldo Real de la Cuenta ({currentProvider.name})</span>
-              </div>
-              <p className="text-sm font-mono text-content-headline leading-relaxed">{currentUsage.balanceText}</p>
-            </div>
-
-            <div>
-              <p className="text-[11px] text-content-dim mb-2">
-                {currentProvider.name} no expone un desglose de tokens por día vía API; esto es una
-                estimación local basada en las peticiones realizadas desde esta app.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-                  <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy (estimado)</span>
-                  <div className="mt-2.5 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold font-mono text-content-headline">
-                      {totalTokens.toLocaleString()}
-                    </span>
-                    <span className="text-xs font-mono text-accent-primary">tokens</span>
-                  </div>
-                  <div className="mt-3 pt-2.5 border-t border-border-subtle/40 flex items-center justify-between text-[11px] text-content-dim">
-                    <span>Prompt: {todayPrompt.toLocaleString()}</span>
-                    <span>Salida: {todayCompletion.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-content-dim font-medium">Gasto Estimado (Hoy)</span>
-                    <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
-                      USD
-                    </span>
-                  </div>
-                  <div className="mt-2.5 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold font-mono text-accent-primary">
-                      {formatCost(totalCostUsd)}
-                    </span>
-                  </div>
-                  <div className="mt-3 pt-2.5 border-t border-border-subtle/40 text-[11px] text-content-dim truncate" title={pricing.unitLabel}>
-                    Tarifa: {pricing.unitLabel}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : currentUsage?.available ? (
-          /* Vista de uso real por tokens + costo (p.ej. Anthropic con Admin Key) */
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-              <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy (real)</span>
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold font-mono text-content-headline">
-                  {((currentUsage.tokensPrompt ?? 0) + (currentUsage.tokensCompletion ?? 0)).toLocaleString()}
-                </span>
-                <span className="text-xs font-mono text-accent-primary">tokens</span>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-border-subtle/40 flex items-center justify-between text-[11px] text-content-dim">
-                <span>Prompt: {(currentUsage.tokensPrompt ?? 0).toLocaleString()}</span>
-                <span>Salida: {(currentUsage.tokensCompletion ?? 0).toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-content-dim font-medium">Costo Real (Hoy)</span>
-                <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
-                  USD
-                </span>
-              </div>
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold font-mono text-accent-primary">
-                  {formatCost(currentUsage.costUsd ?? 0)}
-                </span>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-border-subtle/40 text-[11px] text-content-dim">
-                Reportado por el Cost Report de {currentProvider.name}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Fallback: estimación local basada en telemetría de la app y tarifas fijas */
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Card 1: Tokens Totales */}
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-              <span className="text-xs text-content-dim font-medium">Tokens Consumidos Hoy</span>
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold font-mono text-content-headline">
-                  {totalTokens.toLocaleString()}
-                </span>
-                <span className="text-xs font-mono text-accent-primary">tokens</span>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-border-subtle/40 flex items-center justify-between text-[11px] text-content-dim">
-                <span>Prompt: {todayPrompt.toLocaleString()}</span>
-                <span>Salida: {todayCompletion.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Card 2: Costo Estimado en Dinero ($ USD) */}
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-content-dim font-medium">Gasto Estimado (Hoy)</span>
-                <span className="text-[10px] font-mono text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 rounded border border-accent-primary/20">
-                  USD
-                </span>
-              </div>
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold font-mono text-accent-primary">
-                  {formatCost(totalCostUsd)}
-                </span>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-border-subtle/40 text-[11px] text-content-dim truncate" title={pricing.unitLabel}>
-                Tarifa: {pricing.unitLabel}
-              </div>
-            </div>
-
-            {/* Card 3: Distribución de Tráfico (Prompt vs Salida) */}
-            <div className="p-4 rounded-xl bg-surface-lowest border border-border-subtle/60 flex flex-col justify-between">
-              <span className="text-xs text-content-dim font-medium">Distribución de Tráfico</span>
-              <div className="mt-3">
-                <div className="w-full h-2.5 bg-surface-hover rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-accent-primary h-full transition-all duration-300"
-                    style={{ width: `${promptPct}%` }}
-                    title={`Prompt (Entrada): ${promptPct}%`}
-                  />
-                  <div
-                    className="bg-[#3b82f6] h-full transition-all duration-300"
-                    style={{ width: `${completionPct}%` }}
-                    title={`Respuesta (Salida): ${completionPct}%`}
-                  />
-                </div>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-border-subtle/40 flex items-center justify-between text-[11px] text-content-dim">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-                  Prompt ({promptPct}%)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-                  Salida ({completionPct}%)
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
+      <DailyUsageCards key={settings.modelProvider} providerId={settings.modelProvider} />
       {/* Sección 4: Opciones de Inferencia */}
       <div>
         <div className="mb-3">

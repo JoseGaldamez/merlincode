@@ -35,10 +35,11 @@ func ValidateChatRequest(providerID, model string, messages []domain.ChatMessage
 		if m.Role != domain.ChatRoleUser && m.Role != domain.ChatRoleAssistant && m.Role != domain.ChatRoleSystem {
 			return domain.ErrInvalidChat
 		}
-		if len(m.Content) > MaxChatInputBytes-size {
+		contentSize := max(len(m.Content), len(m.ProviderContent))
+		if contentSize > MaxChatInputBytes-size {
 			return domain.ErrChatTooLarge
 		}
-		size += len(m.Content)
+		size += contentSize
 	}
 	return nil
 }
@@ -187,10 +188,10 @@ func (s *Service) StreamChatWithTools(ctx context.Context, providerID, model str
 		result, err = streamer.StreamChat(ctx, apiKey, model, messages, wrappedOnChunk)
 	}
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return result, err
 	}
 	if result == nil {
 		return nil, domain.ErrAIProviderOperationFailed

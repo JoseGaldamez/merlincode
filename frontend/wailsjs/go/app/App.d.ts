@@ -24,6 +24,8 @@ export function GetProjectTree():Promise<Array<domain.FileNode>>;
 
 export function GetSessionMessages(arg1:string):Promise<Array<domain.ChatMessageRecord>>;
 
+export function GetTodayAIUsage(arg1:string):Promise<domain.DailyProviderUsage>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function InitialWindowState():Promise<domain.WindowState>;
@@ -43,6 +45,8 @@ export function OpenURLInDefaultBrowser(arg1:string):Promise<void>;
 export function PrepareAppRun(arg1:domain.RunRequest):Promise<Array<domain.RunProposal>>;
 
 export function ReadProjectFile(arg1:string):Promise<string>;
+
+export function ReadProjectFilePreview(arg1:string,arg2:string):Promise<string>;
 
 export function RemoveAppRun(arg1:string):Promise<domain.Execution>;
 
