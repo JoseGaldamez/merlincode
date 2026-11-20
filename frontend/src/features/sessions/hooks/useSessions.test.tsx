@@ -88,6 +88,7 @@ describe('conversations belong to the selected project', () => {
       emit({messageId:request.messageId,type:'done'});
     });
     expect(current.chat.messages.at(-1)?.toolActivity?.[0].status).toBe('error');
+    await act(async () => container.querySelector('button')?.click());
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('No se encontró una entrada compatible.');
     expect(container.textContent).not.toContain('Completado');
   });
