@@ -31,8 +31,8 @@ func TestToolRegistry_DefinitionsAndGet(t *testing.T) {
 	registry := NewToolRegistry(newTestWorkspaceForTools(t))
 
 	defs := registry.Definitions()
-	if len(defs) != 4 {
-		t.Fatalf("se esperaban 4 definiciones, obtenidas: %d", len(defs))
+	if len(defs) != 5 {
+		t.Fatalf("se esperaban 5 definiciones, obtenidas: %d", len(defs))
 	}
 
 	wantApproval := map[string]bool{
@@ -40,6 +40,7 @@ func TestToolRegistry_DefinitionsAndGet(t *testing.T) {
 		"list_files": false,
 		"get_tree":   false,
 		"write_file": true,
+		"edit_file":  true,
 	}
 	seen := map[string]bool{}
 	for name, expectApproval := range wantApproval {
@@ -139,6 +140,82 @@ func TestGetTreeTool_Execute(t *testing.T) {
 	}
 	if out == "" || out == "null" {
 		t.Fatalf("salida inesperada: %q", out)
+	}
+}
+
+func TestApplyUniqueReplace(t *testing.T) {
+	content := "line1\nline2\nline3\n"
+
+	updated, err := applyUniqueReplace(content, "line2", "replaced")
+	if err != nil {
+		t.Fatalf("Execute falló: %v", err)
+	}
+	if updated != "line1\nreplaced\nline3\n" {
+		t.Fatalf("contenido actualizado inesperado: %q", updated)
+	}
+
+	if _, err := applyUniqueReplace(content, "no existe", "x"); !errors.Is(err, domain.ErrEditOldStringNotFound) {
+		t.Fatalf("esperado ErrEditOldStringNotFound, obtenido: %v", err)
+	}
+
+	if _, err := applyUniqueReplace("a\na\n", "a", "b"); !errors.Is(err, domain.ErrEditOldStringNotUnique) {
+		t.Fatalf("esperado ErrEditOldStringNotUnique, obtenido: %v", err)
+	}
+
+	if _, err := applyUniqueReplace(content, "", "x"); !errors.Is(err, domain.ErrEditOldStringEmpty) {
+		t.Fatalf("esperado ErrEditOldStringEmpty, obtenido: %v", err)
+	}
+}
+
+func TestEditFileTool_Execute(t *testing.T) {
+	ws := newTestWorkspaceForTools(t)
+	if err := ws.WriteFile("doc.txt", "hola mundo\nfin"); err != nil {
+		t.Fatalf("preparación falló: %v", err)
+	}
+	tool := editFileTool{ws: ws}
+
+	msg, err := tool.Execute(context.Background(), `{"path":"doc.txt","old_string":"hola mundo","new_string":"adios mundo"}`)
+	if err != nil {
+		t.Fatalf("Execute falló: %v", err)
+	}
+	if msg == "" {
+		t.Fatal("se esperaba un mensaje de confirmación")
+	}
+
+	got, err := ws.ReadFile("doc.txt")
+	if err != nil || got != "adios mundo\nfin" {
+		t.Fatalf("el archivo no se editó correctamente: content=%q err=%v", got, err)
+	}
+
+	if _, err := tool.Execute(context.Background(), `{"path":"doc.txt","old_string":"no existe","new_string":"x"}`); !errors.Is(err, domain.ErrEditOldStringNotFound) {
+		t.Fatalf("esperado ErrEditOldStringNotFound, obtenido: %v", err)
+	}
+
+	if _, err := tool.Execute(context.Background(), `{"path":"../fuera.txt","old_string":"a","new_string":"b"}`); !errors.Is(err, domain.ErrAccessDenied) {
+		t.Fatalf("esperado ErrAccessDenied por path traversal, obtenido: %v", err)
+	}
+}
+
+func TestEditFileTool_Execute_WithEditedApprovalContent(t *testing.T) {
+	ws := newTestWorkspaceForTools(t)
+	if err := ws.WriteFile("doc.txt", "original"); err != nil {
+		t.Fatalf("preparación falló: %v", err)
+	}
+	tool := editFileTool{ws: ws}
+
+	// Cuando la aprobación viaja con "content" (porque el usuario editó la propuesta en la
+	// tarjeta), ese contenido completo debe escribirse directamente, ignorando old_string/new_string.
+	msg, err := tool.Execute(context.Background(), `{"path":"doc.txt","old_string":"original","new_string":"ignorado","content":"contenido editado por el usuario"}`)
+	if err != nil {
+		t.Fatalf("Execute falló: %v", err)
+	}
+	if msg == "" {
+		t.Fatal("se esperaba un mensaje de confirmación")
+	}
+
+	got, err := ws.ReadFile("doc.txt")
+	if err != nil || got != "contenido editado por el usuario" {
+		t.Fatalf("el archivo no reflejó el contenido editado: content=%q err=%v", got, err)
 	}
 }
 
