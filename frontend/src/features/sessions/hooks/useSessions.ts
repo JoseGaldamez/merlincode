@@ -25,7 +25,7 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
   const projectPath = activeProject?.path || '';
   const projectKey = JSON.stringify([projectId, projectPath]);
   const currentProjectRef = useRef(projectKey);
-  const refreshRequestRef = useRef(0);
+  const refreshRequestRef = useRef<symbol>();
   currentProjectRef.current = projectKey;
 
   const belongsToProject = useCallback((session: Pick<Session, 'projectId' | 'projectPath'>) => {
@@ -44,7 +44,8 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
   // Cargar lista de sesiones desde la base de datos local SQLite
   const refreshSessions = useCallback(async () => {
     if (currentProjectRef.current !== projectKey || !projectId) return;
-    const request = ++refreshRequestRef.current;
+    const request = Symbol();
+    refreshRequestRef.current = request;
     try {
       const records = await ListSessions();
       if (currentProjectRef.current !== projectKey || refreshRequestRef.current !== request) return;
@@ -58,15 +59,12 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
           projectPath: s.projectPath,
         }));
         setSessions(mapped);
-        setActiveSessionId((current) => {
-          if (current && mapped.some((s) => s.id === current)) {
-            return current;
-          }
-          return mapped.length > 0 ? mapped[0].id : '';
-        });
+        setActiveSessionId((current) => mapped.some((session) => session.id === current) ? current : '');
       }
     } catch (err) {
       console.error('[Merlin Sessions] Error listando sesiones de SQLite:', err);
+    } finally {
+      if (refreshRequestRef.current === request) refreshRequestRef.current = undefined;
     }
   }, [projectKey, projectId, belongsToProject]);
 
@@ -75,25 +73,16 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
     setActiveSessionId('');
     setSearchQuery('');
     void refreshSessions();
-    return () => { refreshRequestRef.current += 1; };
+    return () => { refreshRequestRef.current = undefined; };
   }, [refreshSessions]);
 
   const createSession = useCallback(
-    async (initialTitle?: string) => {
+    async (initialTitle?: string, shouldSelect?: () => boolean) => {
       if (!projectId || currentProjectRef.current !== projectKey) return '';
       const newId = `s-${Date.now()}`;
       const title = initialTitle || `Sesión ${sessions.length + 1}`;
 
-      try {
-        await CreateSession(
-          newId,
-          title,
-          activeProject?.id || '',
-          activeProject?.path || ''
-        );
-      } catch (err) {
-        console.error('[Merlin Sessions] Error creando sesión en SQLite:', err);
-      }
+      await CreateSession(newId, title, projectId, projectPath);
 
       if (currentProjectRef.current !== projectKey) return newId;
 
@@ -102,15 +91,17 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
         title,
         date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
         messagesCount: 0,
-        projectId: activeProject?.id,
-        projectPath: activeProject?.path,
+        projectId,
+        projectPath,
       };
 
-      setSessions((prev) => [newSession, ...prev]);
-      setActiveSessionId(newId);
+      setSessions((prev) => [newSession, ...prev.filter((session) => session.id !== newId)]);
+      if (shouldSelect?.() !== false) setActiveSessionId(newId);
+      // Una consulta iniciada antes de persistir la sesión puede devolver un historial anterior.
+      if (refreshRequestRef.current) void refreshSessions();
       return newId;
     },
-    [sessions.length, activeProject, projectId, projectKey]
+    [sessions.length, projectId, projectPath, projectKey, refreshSessions]
   );
 
   const selectSession = useCallback((id: string) => {
@@ -137,52 +128,26 @@ export function useSessions({ activeProject }: UseSessionsOptions = {}) {
   }, []);
 
   const ensureSession = useCallback(
-    (userText: string): string => {
+    async (userText: string, shouldSelect: () => boolean): Promise<string> => {
       if (!projectId || currentProjectRef.current !== projectKey) return '';
-      let targetId = activeSessionId;
       const title = userText.length > 25 ? `${userText.substring(0, 25)}...` : userText;
+      if (!activeSessionId) return createSession(title, shouldSelect);
 
-      if (!targetId) {
-        targetId = `s-${Date.now()}`;
-
-        CreateSession(
-          targetId,
-          title,
-          activeProject?.id || '',
-          activeProject?.path || ''
-        ).catch((err) => {
-          console.error('[Merlin Sessions] Error creando sesión en SQLite (ensureSession):', err);
-        });
-
-        const newSession: Session = {
-          id: targetId,
-          title,
-          date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
-          messagesCount: 1,
-          projectId: activeProject?.id,
-          projectPath: activeProject?.path,
-        };
-        setSessions((prev) => [newSession, ...prev]);
-        setActiveSessionId(targetId);
-      } else {
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id === targetId) {
-              const shouldUpdateTitle =
-                s.messagesCount === 0 || /^Sesión \d+$/i.test(s.title) || s.title === 'Nueva sesión';
-              const newTitle = shouldUpdateTitle ? title : s.title;
-              if (shouldUpdateTitle) {
-                UpdateSessionTitle(targetId, newTitle).catch(() => {});
-              }
-              return { ...s, title: newTitle, messagesCount: s.messagesCount + 1 };
-            }
-            return s;
-          })
-        );
-      }
-      return targetId;
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== activeSessionId) return s;
+          const shouldUpdateTitle =
+            s.messagesCount === 0 || /^Sesión \d+$/i.test(s.title) || s.title === 'Nueva sesión';
+          const newTitle = shouldUpdateTitle ? title : s.title;
+          if (shouldUpdateTitle) {
+            UpdateSessionTitle(activeSessionId, newTitle).catch(() => {});
+          }
+          return { ...s, title: newTitle, messagesCount: s.messagesCount + 1 };
+        })
+      );
+      return activeSessionId;
     },
-    [activeSessionId, activeProject, projectId, projectKey]
+    [activeSessionId, createSession, projectId, projectKey]
   );
 
   const incrementSessionCount = useCallback((sessionId: string) => {

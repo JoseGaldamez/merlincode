@@ -19,7 +19,11 @@ export function App() {
 
   // Estado global de configuración de IA y estado de credenciales en el llavero
   const { statuses, refreshStatuses } = useAIProviderStatus();
-  const { settings, updateSetting } = useSettingsForm();
+  const { settings, selectProvider, saveSettings } = useSettingsForm(statuses);
+  const closeSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+    void refreshStatuses();
+  }, [refreshStatuses]);
 
   // Proyectos y espacios de trabajo
   const {
@@ -50,7 +54,6 @@ export function App() {
     setActiveSessionId,
     searchQuery,
     setSearchQuery,
-    createSession,
     selectSession,
     deleteSession,
     ensureSession,
@@ -67,7 +70,6 @@ export function App() {
     streamingStatusText,
     cancelStream,
     telemetry,
-    setTelemetry,
     handleFeedback,
     resolveToolApproval,
   } = useChat({
@@ -110,13 +112,6 @@ export function App() {
     revealExecution(focus);
   }, [selectRunningProject, revealExecution]);
 
-  // Refrescar estado de proveedores al cerrar el modal de ajustes
-  useEffect(() => {
-    if (!isSettingsOpen) {
-      refreshStatuses();
-    }
-  }, [isSettingsOpen, refreshStatuses]);
-
   const handleNewSession = () => {
     if (isLoading) {
       cancelStream();
@@ -156,7 +151,7 @@ export function App() {
         telemetry={telemetry}
         statuses={statuses}
         selectedProviderId={settings.modelProvider}
-        onSelectProvider={(provId) => updateSetting('modelProvider', provId)}
+        onSelectProvider={selectProvider}
       />
 
       <div className="flex-1 flex overflow-hidden min-h-0 w-full">
@@ -188,7 +183,7 @@ export function App() {
           onPreviewFile={projectPath ? openFilePreview : undefined}
           onFeedback={handleFeedback}
           onResolveApproval={resolveToolApproval}
-          activeModel={settings.model || telemetry.activeModel}
+          activeModel={settings.model}
         />
 
         <RightSidebar
@@ -203,20 +198,19 @@ export function App() {
         />
       </div>
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        projects={projects}
-        activeProjectId={activeProjectId}
-        onSelectProject={selectProject}
-        onDeleteProject={deleteProject}
-        onOpenFolder={openFolderDialog}
-        onAddProject={addProject}
-        telemetry={telemetry}
-        onUpdateTelemetry={(updated) => {
-          setTelemetry((prev) => ({ ...prev, ...updated }));
-        }}
-      />
+      {isSettingsOpen && (
+        <SettingsModal
+          onClose={closeSettings}
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelectProject={selectProject}
+          onDeleteProject={deleteProject}
+          onOpenFolder={openFolderDialog}
+          onAddProject={addProject}
+          initialSettings={settings}
+          onSave={saveSettings}
+        />
+      )}
       {filePreview && filePreview.project === projectPath && (
         <FilePreviewModal
           key={filePreview.path}

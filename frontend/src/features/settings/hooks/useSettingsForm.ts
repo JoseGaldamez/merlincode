@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
-import { AgentTelemetry } from '../../../types';
+import { useState } from 'react';
 import { SettingsState } from '../types';
 import {
   AI_PROVIDERS,
   DEFAULT_PROVIDER_ID,
   getProviderConfig,
 } from '../constants';
+import type { ProviderStatusMap } from './useAIProviderStatus';
 
-export const SETTINGS_STORAGE_KEY = 'merlin_app_settings:v2';
+export const SETTINGS_STORAGE_KEY = 'merlin_app_settings:v3';
+export const PREVIOUS_SETTINGS_STORAGE_KEY = 'merlin_app_settings:v2';
 export const LEGACY_SETTINGS_STORAGE_KEY = 'merlin_app_settings';
 
 type SettingsStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -49,7 +50,7 @@ export function serializeAllowedSettings(state: SettingsState): Record<string, u
  * Deserializa un objeto JSON arbitrario inspeccionando únicamente campos conocidos
  * y detectando campos heredados sensibles (apiKey, adminApiKey, apiEndpoint, etc.).
  */
-export function parseAndSanitizeSettings(raw: unknown): {
+export function parseAndSanitizeSettings(raw: unknown, migrateAutomaticModel = false): {
   settings: SettingsState;
   hasLegacySecrets: boolean;
   hasUnknownKeys: boolean;
@@ -80,7 +81,7 @@ export function parseAndSanitizeSettings(raw: unknown): {
 
   const rawModel = typeof record.model === 'string' ? record.model : '';
   // DeepSeek V4 Pro sigue en el catálogo, pero era el modelo automático de versiones anteriores.
-  const isPreviousDefault = validProvider === 'deepseek' && rawModel === 'deepseek-v4-pro';
+  const isPreviousDefault = migrateAutomaticModel && validProvider === 'deepseek' && rawModel === 'deepseek-v4-pro';
   const isModelValid = providerConfig.models.some((m) => m.id === rawModel);
   const activeModel = isModelValid && !isPreviousDefault ? rawModel : providerConfig.defaultModel;
 
@@ -110,100 +111,56 @@ export function parseAndSanitizeSettings(raw: unknown): {
  * entren al estado React. El origen heredado se elimina incluso si está corrupto.
  */
 export function loadAndMigrateSettings(storage: SettingsStorage): SettingsState {
-  let sourceKey = SETTINGS_STORAGE_KEY;
-  let saved: string | null = null;
-
   try {
-    saved = storage.getItem(SETTINGS_STORAGE_KEY);
-    if (!saved) {
-      sourceKey = LEGACY_SETTINGS_STORAGE_KEY;
-      saved = storage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
-    }
+    const current = storage.getItem(SETTINGS_STORAGE_KEY);
+    const saved = current || storage.getItem(PREVIOUS_SETTINGS_STORAGE_KEY) || storage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
 
     if (!saved) {
       return { ...defaultSettings };
     }
 
     const parsed: unknown = JSON.parse(saved);
-    const { settings } = parseAndSanitizeSettings(parsed);
+    const { settings } = parseAndSanitizeSettings(parsed, !current);
     storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(serializeAllowedSettings(settings)));
+    storage.removeItem(PREVIOUS_SETTINGS_STORAGE_KEY);
     storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
     return settings;
   } catch {
     try {
       storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
-      storage.removeItem(sourceKey);
+      storage.removeItem(PREVIOUS_SETTINGS_STORAGE_KEY);
+      storage.removeItem(SETTINGS_STORAGE_KEY);
     } catch {}
     return { ...defaultSettings };
   }
 }
 
-export function useSettingsForm(
-  telemetry?: AgentTelemetry,
-  onUpdateTelemetry?: (updated: Partial<AgentTelemetry>) => void,
-  onClose?: () => void
-) {
-  const [settings, setSettings] = useState<SettingsState>(() => {
-    const stored = loadAndMigrateSettings(localStorage);
-    return {
-      ...stored,
-      model: telemetry?.activeModel || stored.model,
-      temperature: telemetry?.temperature ?? stored.temperature,
-    };
-  });
-  const [savedSuccess, setSavedSuccess] = useState(false);
-
-  // Mantener sincronizado si la telemetría externa cambia
-  useEffect(() => {
-    if (telemetry?.activeModel) {
-      setSettings((prev) => ({
-        ...prev,
-        model: telemetry.activeModel || prev.model,
-        temperature: telemetry.temperature ?? prev.temperature,
-      }));
-    }
-  }, [telemetry?.activeModel, telemetry?.temperature]);
-
-  const updateSetting = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
-    setSettings((prev) => {
-      if (key === 'modelProvider') {
-        const nextProvider = getProviderConfig(value as string);
-        const isCurrentModelValid = nextProvider.models.some((m) => m.id === prev.model);
-        return {
-          ...prev,
-          modelProvider: nextProvider.id,
-          model: isCurrentModelValid ? prev.model : nextProvider.defaultModel,
-        };
-      }
-      return { ...prev, [key]: value };
-    });
+export function selectSettingsProvider(settings: SettingsState, providerId: string): SettingsState {
+  const provider = getProviderConfig(providerId);
+  return {
+    ...settings,
+    modelProvider: provider.id,
+    model: provider.models.some((model) => model.id === settings.model) ? settings.model : provider.defaultModel,
   };
+}
 
-  const handleSave = () => {
-    if (onUpdateTelemetry) {
-      onUpdateTelemetry({
-        activeModel: settings.model,
-      });
-    }
+export function useSettingsForm(statuses: ProviderStatusMap) {
+  const [savedSettings, setSavedSettings] = useState(() => loadAndMigrateSettings(localStorage));
+  const isVerified = (id: string) => statuses[id]?.configured && statuses[id]?.verified;
+  const fallback = isVerified(savedSettings.modelProvider) ? undefined : AI_PROVIDERS.find((provider) => isVerified(provider.id));
+  const settings = fallback ? selectSettingsProvider(savedSettings, fallback.id) : savedSettings;
 
+  const saveSettings = (next: SettingsState) => {
+    const { settings: sanitized } = parseAndSanitizeSettings(next);
+    setSavedSettings(sanitized);
     try {
-      const payload = serializeAllowedSettings(settings);
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(serializeAllowedSettings(sanitized)));
     } catch {}
-
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      if (onClose) {
-        onClose();
-      }
-    }, 750);
   };
 
   return {
     settings,
-    updateSetting,
-    handleSave,
-    savedSuccess,
+    selectProvider: (providerId: string) => saveSettings(selectSettingsProvider(settings, providerId)),
+    saveSettings,
   };
 }

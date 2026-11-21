@@ -185,6 +185,18 @@ export const AISettingsTab: React.FC<AISettingsTabProps> = ({
             );
           })}
         </div>
+        <label className="mt-4 flex max-w-xs flex-col gap-1.5 text-sm font-medium text-content-headline">
+          Modelo del chat
+          <select
+            className="w-full bg-surface-lowest border border-border-subtle hover:border-border-petrol focus:border-accent-primary rounded-lg px-3.5 py-2 text-sm text-content-headline outline-none transition-colors cursor-pointer"
+            value={settings.model}
+            onChange={(event) => onUpdate('model', event.target.value)}
+          >
+            {currentProvider.models.map((model) => (
+              <option key={model.id} value={model.id}>{model.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Sección 2: Claves (API estándar y Admin, en tabs) */}

@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -17,10 +18,14 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func withFakeStreamTransport(t *testing.T, sseBody string) {
+func withFakeStreamTransport(t *testing.T, sseBody string, inspectRequest func(*http.Request)) {
 	t.Helper()
 	orig := transport.StreamClient.Transport
 	transport.StreamClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		defer req.Body.Close()
+		if inspectRequest != nil {
+			inspectRequest(req)
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader(sseBody)),
@@ -43,7 +48,32 @@ data: {"candidates":[{"content":{"role":"model","parts":[]}}],"usageMetadata":{"
 `
 
 func TestStreamChatWithTools_ParsesUnfragmentedFunctionCallArgs(t *testing.T) {
-	withFakeStreamTransport(t, geminiToolCallSSEFixture)
+	withFakeStreamTransport(t, geminiToolCallSSEFixture, func(req *http.Request) {
+		var body struct {
+			Tools []struct {
+				FunctionDeclarations []struct {
+					Parameters           json.RawMessage `json:"parameters"`
+					ParametersJSONSchema struct {
+						AdditionalProperties *bool `json:"additionalProperties"`
+					} `json:"parametersJsonSchema"`
+				} `json:"functionDeclarations"`
+			} `json:"tools"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			t.Fatalf("solicitud JSON inválida: %v", err)
+		}
+		if len(body.Tools) != 1 || len(body.Tools[0].FunctionDeclarations) != 1 {
+			t.Fatalf("se esperaba una declaración de función: %+v", body.Tools)
+		}
+		decl := body.Tools[0].FunctionDeclarations[0]
+		if decl.Parameters != nil {
+			t.Fatalf("la declaración incluye el campo parameters: %s", decl.Parameters)
+		}
+		additionalProperties := decl.ParametersJSONSchema.AdditionalProperties
+		if additionalProperties == nil || *additionalProperties {
+			t.Fatal("parametersJsonSchema debe incluir additionalProperties: false")
+		}
+	})
 
 	var gotContent strings.Builder
 	var gotToolCalls []domain.ToolCall
@@ -53,7 +83,16 @@ func TestStreamChatWithTools_ParsesUnfragmentedFunctionCallArgs(t *testing.T) {
 		"AIzaSyTestKey",
 		"gemini-3.8-flash",
 		[]domain.ChatMessage{{Role: domain.ChatRoleUser, Content: "lee src/main.go"}},
-		[]domain.ToolDefinition{{Name: "read_file", Description: "lee un archivo"}},
+		[]domain.ToolDefinition{{
+			Name:        "read_file",
+			Description: "lee un archivo",
+			InputSchema: map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{"path": map[string]any{"type": "string"}},
+				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		}},
 		func(chunk StreamChunk) error {
 			if chunk.Type == domain.ChunkTypeContent {
 				gotContent.WriteString(chunk.Text)
@@ -107,7 +146,7 @@ func TestStreamChatWithTools_MultipleFunctionCallsGetSequentialSynthesizedIDs(t 
 data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"read_file","args":{"path":"b.txt"}}}]}}]}
 
 `
-	withFakeStreamTransport(t, sse)
+	withFakeStreamTransport(t, sse, nil)
 
 	result, err := Client{}.StreamChatWithTools(
 		context.Background(),
@@ -134,7 +173,7 @@ func TestStreamChatWithTools_ThinkingPartsAreSeparatedFromContent(t *testing.T) 
 data: {"candidates":[{"content":{"role":"model","parts":[{"text":"respuesta final"}]}}]}
 
 `
-	withFakeStreamTransport(t, sse)
+	withFakeStreamTransport(t, sse, nil)
 
 	result, err := Client{}.StreamChatWithTools(
 		context.Background(),

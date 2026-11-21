@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project, AgentTelemetry } from '../../types';
+import { Project } from '../../types';
 
 export type SettingsCategoryType = 'general' | 'ai' | 'projects' | 'shortcuts' | 'privacy';
 
@@ -22,7 +22,6 @@ export interface SettingsState {
 }
 
 export interface SettingsModalProps {
-  isOpen: boolean;
   onClose: () => void;
   projects: Project[];
   activeProjectId: string;
@@ -30,6 +29,6 @@ export interface SettingsModalProps {
   onAddProject?: (name: string) => void;
   onDeleteProject?: (id: string) => void;
   onOpenFolder?: () => void;
-  telemetry: AgentTelemetry;
-  onUpdateTelemetry: (updated: Partial<AgentTelemetry>) => void;
+  initialSettings: SettingsState;
+  onSave: (settings: SettingsState) => void;
 }

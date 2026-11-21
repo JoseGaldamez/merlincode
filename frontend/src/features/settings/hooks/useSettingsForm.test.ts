@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import {
   LEGACY_SETTINGS_STORAGE_KEY,
+  PREVIOUS_SETTINGS_STORAGE_KEY,
   SETTINGS_STORAGE_KEY,
   loadAndMigrateSettings,
   serializeAllowedSettings,
+  useSettingsForm,
 } from './useSettingsForm';
+import type { ProviderStatusMap } from './useAIProviderStatus';
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();
@@ -93,7 +99,7 @@ describe('preferencias seguras', () => {
     ['deepseek', 'deepseek-v4-pro', 'deepseek-flash'],
   ])('actualiza el modelo automático anterior de %s', (provider, previous, current) => {
     const storage = new MemoryStorage({
-      [SETTINGS_STORAGE_KEY]: JSON.stringify({ modelProvider: provider, model: previous }),
+      [PREVIOUS_SETTINGS_STORAGE_KEY]: JSON.stringify({ modelProvider: provider, model: previous }),
     });
 
     const settings = loadAndMigrateSettings(storage);
@@ -101,6 +107,14 @@ describe('preferencias seguras', () => {
     expect(settings.modelProvider).toBe(provider);
     expect(settings.model).toBe(current);
     expect(storage.getItem(SETTINGS_STORAGE_KEY)).toContain(current);
+    expect(storage.getItem(PREVIOUS_SETTINGS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('corrige un modelo guardado que pertenece a otro proveedor', () => {
+    const storage = new MemoryStorage({
+      [PREVIOUS_SETTINGS_STORAGE_KEY]: JSON.stringify({ modelProvider: 'openai', model: 'claude-sonnet-5-5' }),
+    });
+    expect(loadAndMigrateSettings(storage)).toMatchObject({ modelProvider: 'openai', model: 'gpt-6.2-sol' });
   });
 
   it('elimina una configuración corrupta en vez de conservar posibles secretos', () => {
@@ -115,7 +129,7 @@ describe('preferencias seguras', () => {
   });
 });
 
-it('purges legacy secrets even when v2 exists or is corrupt', () => {
+it('purges legacy secrets even when current storage exists or is corrupt', () => {
   for (const current of ['{}', '{invalid']) {
     const storage = new MemoryStorage({
       [SETTINGS_STORAGE_KEY]: current,
@@ -123,5 +137,39 @@ it('purges legacy secrets even when v2 exists or is corrupt', () => {
     });
     expect(JSON.stringify(loadAndMigrateSettings(storage))).not.toContain('SENTINEL');
     expect(storage.getItem(LEGACY_SETTINGS_STORAGE_KEY)).toBeNull();
+  }
+});
+
+it('guarda el proveedor de la barra y restaura el modelo elegido al volver a abrir la aplicación', async () => {
+  const providerStatus = (providerId: string) => ({
+    providerId, configured: true, verified: true, supportsAdminKey: false, hasAdminKey: false,
+  });
+  const statuses: ProviderStatusMap = { openai: providerStatus('openai'), deepseek: providerStatus('deepseek') };
+  let current!: ReturnType<typeof useSettingsForm>;
+  function Harness({ providers }: { providers: ProviderStatusMap }) {
+    current = useSettingsForm(providers);
+    return null;
+  }
+
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  localStorage.clear();
+  const root = createRoot(document.createElement('div'));
+  try {
+    await act(async () => root.render(createElement(Harness, { providers: { openai: statuses.openai } })));
+    expect(current.settings).toMatchObject({ modelProvider: 'openai', model: 'gpt-6.2-sol' });
+    expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toBeNull();
+
+    await act(async () => root.render(createElement(Harness, { providers: statuses })));
+    await act(async () => current.selectProvider('deepseek'));
+    expect(loadAndMigrateSettings(localStorage)).toMatchObject({ modelProvider: 'deepseek', model: 'deepseek-flash' });
+
+    await act(async () => current.saveSettings({ ...current.settings, model: 'deepseek-v4-pro' }));
+    await act(async () => root.render(null));
+    await act(async () => root.render(createElement(Harness, { providers: statuses })));
+    expect(current.settings).toMatchObject({ modelProvider: 'deepseek', model: 'deepseek-v4-pro' });
+  } finally {
+    await act(async () => root.unmount());
+    localStorage.clear();
+    vi.unstubAllGlobals();
   }
 });

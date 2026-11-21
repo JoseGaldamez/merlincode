@@ -58,8 +58,13 @@ beforeEach(() => {
   vi.resetAllMocks();
   bridge.listeners.clear();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  bridge.ListSessions.mockResolvedValue(savedSessions);
-  bridge.CreateSession.mockResolvedValue({});
+  const storedSessions = [...savedSessions];
+  bridge.ListSessions.mockImplementation(async () => [...storedSessions]);
+  bridge.CreateSession.mockImplementation(async (id: string, title: string, projectId: string, projectPath: string) => {
+    const session = { id, title, projectId, projectPath, messagesCount: 0 };
+    storedSessions.unshift(session);
+    return session;
+  });
   bridge.UpdateSessionTitle.mockResolvedValue(undefined);
   bridge.CancelChatStream.mockResolvedValue(true);
   bridge.StartChatStream.mockResolvedValue(undefined);
@@ -108,28 +113,57 @@ describe('conversations belong to the selected project', () => {
     expect(current.chat.messages.at(-1)?.toolActivity?.[0].status).toBe('done');
   });
 
-  it('changes the list, active conversation, messages and search when switching projects', async () => {
+  it('starts with an empty chat and opens history only when selected', async () => {
     await render(projectA);
     expect(current.sessions.map((session) => session.id)).toEqual(['a-chat', 'legacy-a']);
+    expect(current.activeSessionId).toBe('');
+    expect(current.chat.messages).toEqual([]);
+    expect(bridge.GetSessionMessages).not.toHaveBeenCalled();
+    expect(bridge.CreateSession).not.toHaveBeenCalled();
+    await act(async () => current.selectSession('a-chat'));
     expect(current.activeSessionId).toBe('a-chat');
     expect(current.chat.messages[0].content).toBe('history-a-chat');
     await act(async () => current.setSearchQuery('Alpha'));
     await render(projectB);
     expect(current.sessions.map((session) => session.id)).toEqual(['b-chat']);
-    expect(current.activeSessionId).toBe('b-chat');
-    expect(current.chat.messages[0].content).toBe('history-b-chat');
+    expect(current.activeSessionId).toBe('');
+    expect(current.chat.messages).toEqual([]);
     expect(current.searchQuery).toBe('');
     await act(async () => current.selectSession('a-chat'));
+    expect(current.activeSessionId).toBe('');
+    await act(async () => current.selectSession('b-chat'));
     expect(current.activeSessionId).toBe('b-chat');
+    expect(current.chat.messages[0].content).toBe('history-b-chat');
     await render(projectA);
-    expect(current.activeSessionId).toBe('a-chat');
+    expect(current.activeSessionId).toBe('');
     await render({ id: 'empty', name: 'Empty', path: '/projects/empty' });
     expect(current.sessions).toEqual([]);
     expect(current.activeSessionId).toBe('');
     expect(current.chat.messages).toEqual([]);
     await render(null);
     expect(current.sessions).toEqual([]);
-    expect(current.ensureSession('no project')).toBe('');
+    await expect(current.ensureSession('no project', () => true)).resolves.toBe('');
+  });
+
+  it('creates the first session before streaming, even while startup history is loading', async () => {
+    const startupList = deferred<typeof savedSessions>();
+    const creation = deferred<object>();
+    bridge.ListSessions.mockImplementationOnce(() => startupList.promise);
+    bridge.CreateSession.mockImplementationOnce(() => creation.promise);
+    await render(projectA);
+
+    let send!: Promise<void>;
+    await act(async () => { send = current.chat.sendMessage('Primer mensaje'); });
+    const [sessionId, title, projectId, projectPath] = bridge.CreateSession.mock.calls[0];
+    expect(bridge.StartChatStream).not.toHaveBeenCalled();
+    bridge.ListSessions.mockResolvedValue([...savedSessions, { id: sessionId, title, projectId, projectPath }]);
+    await act(async () => { creation.resolve({}); await send; });
+    await act(async () => startupList.resolve(savedSessions));
+
+    expect(current.activeSessionId).toBe(sessionId);
+    expect(current.chat.messages[0].content).toBe('Primer mensaje');
+    expect(bridge.StartChatStream).toHaveBeenCalledWith(expect.objectContaining({ sessionId, history: [] }));
+    expect(bridge.GetSessionMessages).not.toHaveBeenCalled();
   });
 
   it('ignores a late session-list response from the previous project', async () => {
@@ -137,6 +171,7 @@ describe('conversations belong to the selected project', () => {
     bridge.ListSessions.mockImplementationOnce(() => oldList.promise);
     await render(projectA);
     await render(projectB);
+    await act(async () => current.selectSession('b-chat'));
     await act(async () => oldList.resolve(savedSessions));
     expect(current.sessions.map((session) => session.id)).toEqual(['b-chat']);
     expect(current.activeSessionId).toBe('b-chat');
@@ -152,7 +187,7 @@ describe('conversations belong to the selected project', () => {
     await render(projectB);
     await act(async () => { oldCreation.resolve({}); await creation; });
     expect(current.sessions.map((session) => session.id)).toEqual(['b-chat']);
-    expect(current.activeSessionId).toBe('b-chat');
+    expect(current.activeSessionId).toBe('');
     await act(async () => { await current.createSession('Beta draft'); });
     expect(bridge.CreateSession).toHaveBeenLastCalledWith(expect.any(String), 'Beta draft', 'b', projectB.path);
     expect(current.sessions[0].projectId).toBe('b');
@@ -162,7 +197,9 @@ describe('conversations belong to the selected project', () => {
     const oldMessages = deferred<object[]>();
     bridge.GetSessionMessages.mockImplementationOnce(() => oldMessages.promise);
     await render(projectA);
+    await act(async () => current.selectSession('a-chat'));
     await render(projectB);
+    await act(async () => current.selectSession('b-chat'));
     await act(async () => oldMessages.resolve([{ id: 'late', role: 'user', content: 'Alpha must stay hidden' }]));
     expect(current.chat.messages.map((message) => message.content)).toEqual(['history-b-chat']);
   });
@@ -171,6 +208,7 @@ describe('conversations belong to the selected project', () => {
     const oldStart = deferred<void>();
     bridge.StartChatStream.mockImplementationOnce(() => oldStart.promise);
     await render(projectA);
+    await act(async () => current.selectSession('a-chat'));
     await act(async () => { await current.chat.sendMessage('Alpha request'); });
     const alphaRequest = bridge.StartChatStream.mock.calls[0][0];
     expect(alphaRequest.sessionId).toBe('a-chat');
@@ -179,6 +217,7 @@ describe('conversations belong to the selected project', () => {
     expect(bridge.CancelChatStream).toHaveBeenCalledWith(alphaRequest.messageId);
     expect(current.chat.isLoading).toBe(false);
     expect(current.chat.telemetry.tokensPrompt).toBe(0);
+    await act(async () => current.selectSession('b-chat'));
     await act(async () => { await current.chat.sendMessage('Beta request'); });
     const betaRequest = bridge.StartChatStream.mock.calls[1][0];
     expect(betaRequest.sessionId).toBe('b-chat');

@@ -35,11 +35,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     (p) => statuses[p.id]?.configured && statuses[p.id]?.verified
   );
 
-  const activeProvider =
-    configuredProviders.find((p) => p.id === selectedProviderId) ??
-    configuredProviders[0] ??
-    AI_PROVIDERS.find((p) => p.id === selectedProviderId) ??
-    AI_PROVIDERS[0];
+  const activeProvider = AI_PROVIDERS.find((p) => p.id === selectedProviderId) ?? AI_PROVIDERS[0];
 
   // Cerrar dropdown al hacer click afuera
   useEffect(() => {

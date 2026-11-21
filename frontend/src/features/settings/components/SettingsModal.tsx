@@ -8,8 +8,8 @@ import {
   IconShield,
   IconKeyboard,
 } from '../../../components/Icons';
-import { CategoryItem, SettingsCategoryType, SettingsModalProps } from '../types';
-import { useSettingsForm } from '../hooks/useSettingsForm';
+import { CategoryItem, SettingsCategoryType, SettingsModalProps, SettingsState } from '../types';
+import { selectSettingsProvider } from '../hooks/useSettingsForm';
 import { SettingsNav } from './SettingsNav';
 import { GeneralTab } from './tabs/GeneralTab';
 import { AISettingsTab } from './tabs/AISettingsTab';
@@ -18,7 +18,6 @@ import { ShortcutsTab } from './tabs/ShortcutsTab';
 import { PrivacyTab } from './tabs/PrivacyTab';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen,
   onClose,
   projects,
   activeProjectId,
@@ -26,28 +25,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onAddProject,
   onDeleteProject,
   onOpenFolder,
-  telemetry,
-  onUpdateTelemetry,
+  initialSettings,
+  onSave,
 }) => {
   const [activeCategory, setActiveCategory] = useState<SettingsCategoryType>('ai');
-  const { settings, updateSetting, handleSave, savedSuccess } = useSettingsForm(
-    telemetry,
-    onUpdateTelemetry,
-    onClose
-  );
+  const [settings, setSettings] = useState(initialSettings);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const updateSetting = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
+    setSettings((previous) => key === 'modelProvider'
+      ? selectSettingsProvider(previous, value as string)
+      : { ...previous, [key]: value });
+  };
+
+  const handleSave = () => {
+    onSave(settings);
+    setSavedSuccess(true);
+  };
+
+  useEffect(() => {
+    if (!savedSuccess) return;
+    const timer = window.setTimeout(onClose, 750);
+    return () => window.clearTimeout(timer);
+  }, [savedSuccess, onClose]);
 
   // Escuchar tecla Escape para cerrar modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, [onClose]);
 
   const categories: CategoryItem[] = [
     {

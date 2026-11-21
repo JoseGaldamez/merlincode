@@ -17,7 +17,7 @@ interface UseChatOptions {
   activeSessionId?: string;
   selectedProviderId?: string;
   selectedModelId?: string;
-  onEnsureSession?: (userText: string) => string;
+  onEnsureSession?: (userText: string, shouldSelect: () => boolean) => Promise<string>;
   onIncrementSessionCount?: (sessionId: string) => void;
   onRefreshSessions?: () => void;
 }
@@ -388,7 +388,7 @@ export function useChat({
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || isLoading) return;
+      if (!trimmed || isLoading || currentStreamingIdRef.current) return;
 
       const userMsgId = `usr-${Date.now()}`;
       const userMsg: Message = {
@@ -397,21 +397,6 @@ export function useChat({
         content: trimmed,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-
-      // Garantizar que exista una sesión activa
-      let currentSessionId = activeSessionId;
-      if (onEnsureSession) {
-        const ensuredId = onEnsureSession(trimmed);
-        if (ensuredId) {
-          currentSessionId = ensuredId;
-        }
-      } else if (activeSessionId && onIncrementSessionCount) {
-        onIncrementSessionCount(activeSessionId);
-      }
-
-      if (currentSessionId) {
-        skipNextLoadSessionIdRef.current = currentSessionId;
-      }
 
       // Si no hay carpeta/proyecto activo, requerir consentimiento y selección
       if (!activeProject || !activeProject.path) {
@@ -433,7 +418,6 @@ export function useChat({
       }
 
       const asstMessageId = `asst-${Date.now()}`;
-      currentStreamingSessionIdRef.current = currentSessionId || null;
       currentStreamingIdRef.current = asstMessageId;
       streamStartTimeRef.current = performance.now();
 
@@ -467,26 +451,11 @@ export function useChat({
         tokensPrompt: prev.tokensPrompt + Math.max(1, Math.floor(trimmed.length / 4)),
       }));
 
-      console.log(`[Merlin Chat] Iniciando envío de mensaje:`, {
-        provider: selectedProviderId,
-        model: selectedModelId || 'automático',
-        historyCount: historyToSend.length,
-      });
-
-      StartChatStream(
-        new domain.ChatStreamRequest({
-          sessionId: currentSessionId || 'default-session',
-          messageId: asstMessageId,
-          userMessageId: userMsgId,
-          providerId: selectedProviderId,
-          modelId: selectedModelId,
-          prompt: trimmed,
-          history: historyToSend,
-        })
-      ).catch((err: any) => {
-        if (currentStreamingIdRef.current !== asstMessageId) return;
+      const isCurrentTurn = () => currentStreamingIdRef.current === asstMessageId;
+      const handleStartError = (err: unknown) => {
+        if (!isCurrentTurn()) return;
         const elapsed = Math.round(performance.now() - streamStartTimeRef.current);
-        const errMsg = err?.message || err || 'No se pudo conectar con el backend de IA.';
+        const errMsg = err instanceof Error ? err.message : err || 'No se pudo conectar con el backend de IA.';
         console.error(`[Merlin Chat] Error al iniciar stream (${elapsed}ms):`, errMsg);
         setMessages((prev) =>
           prev.map((m) =>
@@ -509,7 +478,45 @@ export function useChat({
           status: 'error',
           latencyMs: elapsed,
         }));
+      };
+
+      let currentSessionId = activeSessionId;
+      if (onEnsureSession) {
+        try {
+          currentSessionId = await onEnsureSession(trimmed, isCurrentTurn);
+        } catch {
+          handleStartError('No se pudo crear la sesión en el historial local.');
+          return;
+        }
+        if (!isCurrentTurn()) return;
+        if (!currentSessionId) {
+          handleStartError('No se pudo abrir una sesión para el proyecto activo.');
+          return;
+        }
+      } else if (activeSessionId && onIncrementSessionCount) {
+        onIncrementSessionCount(activeSessionId);
+      }
+
+      currentStreamingSessionIdRef.current = currentSessionId || null;
+      skipNextLoadSessionIdRef.current = currentSessionId || null;
+
+      console.log(`[Merlin Chat] Iniciando envío de mensaje:`, {
+        provider: selectedProviderId,
+        model: selectedModelId || 'automático',
+        historyCount: historyToSend.length,
       });
+
+      StartChatStream(
+        new domain.ChatStreamRequest({
+          sessionId: currentSessionId || 'default-session',
+          messageId: asstMessageId,
+          userMessageId: userMsgId,
+          providerId: selectedProviderId,
+          modelId: selectedModelId,
+          prompt: trimmed,
+          history: historyToSend,
+        })
+      ).catch(handleStartError);
     },
     [
       isLoading,

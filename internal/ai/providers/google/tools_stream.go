@@ -43,9 +43,9 @@ type geminiToolContent struct {
 }
 
 type geminiFunctionDeclaration struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
+	Name                 string         `json:"name"`
+	Description          string         `json:"description"`
+	ParametersJSONSchema map[string]any `json:"parametersJsonSchema,omitempty"`
 }
 
 // geminiTool es la traducción de domain.ToolDefinition al wire format de Gemini.
@@ -149,9 +149,9 @@ func (Client) StreamChatWithTools(
 		decls := make([]geminiFunctionDeclaration, 0, len(tools))
 		for _, t := range tools {
 			decls = append(decls, geminiFunctionDeclaration{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.InputSchema,
+				Name:                 t.Name,
+				Description:          t.Description,
+				ParametersJSONSchema: t.InputSchema,
 			})
 		}
 		reqTools = []geminiTool{{FunctionDeclarations: decls}}
